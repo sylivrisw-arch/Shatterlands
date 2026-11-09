@@ -1,0 +1,138 @@
+Shatterlands: World Lore
+
+The Unbroken Age
+----------------
+Before the Shatterlands there was only the Floor: one seamless plain of dirt
+and stone, resting on Bedrock that nothing could break. The material was all
+there, but nobody could separate it into pieces small enough to use.
+
+The First Blast
+---------------
+A surveyor set a charge beneath the plain. The blast is remembered, but her
+name was lost long ago. The ground came apart into thousands of tiny cubes.
+Those who watched swore that what the blast took was what fell. Miners call
+this the Scoop Law. It is their ideal rather than a promise. Dust drifts
+away, and the sharpest-eyed miners say a little is always missing.
+
+The Hanging Ground
+------------------
+Miners learned to spot shelves of earth held up by little more than a narrow
+neck of stone. Cut one loose and the whole shelf can turn over as it falls.
+
+The Bedrock Line
+----------------
+The blasts could never touch the bottom layer, and no tool has ever
+scratched it. The miners treat it as the one promise the land keeps: you can
+ruin everything above it, but never fall through.
+
+The Miners
+----------
+A miner carries three tools and a field checklist. The miner you play is a
+man who makes his living breaking ground and delivering stone.
+
+Tools of the Trade
+------------------
+The Impact Hammer takes a measured bite with every swing. It’s for shaping a
+crater, trimming a ledge, or finding where a structure is weakest.
+
+Miners throw a Breaching Charge in an arc, wait for it to land, then set it
+off by hand. They use one charge at a time, and every charge packs the same
+punch.
+
+The Blower draws loose rubble into its nozzle. Only stone goes into the
+miner’s tally. At high power it reaches farther and pulls harder.
+
+Reading the Ground
+------------------
+A blast is felt as a shake in the world itself. Fire, smoke and dust rise
+and fade, but the cracks stay. Experienced miners read those cracks first.
+An unmarked ledge may already be hanging by a thread. Deep cracks mean time
+is running out.
+
+The oldest rule of the miners’ guidebook is to look at what’s holding a
+thing up before you strike it. Anyone can make a hole, but a miner makes the
+ground drop where they want it to.
+
+Stone Deliveries
+----------------
+After a blast, miners gather what stone they can and log it in the Storage
+tab of their field checklist. When they have enough stored, they turn it in
+for a delivery. Every delivery pays the same. Five hundred stone, one
+hundred credits. Old miners can tell you how to bring down a ledge with one
+charge. Ask them where the stone goes and they’ll tell you how much you’re
+short.
+
+The Echoes
+----------
+Miners can photograph a real object from the world outside, such as a shed,
+a chair or a boot, and carry it to a scanning post. The post builds it from
+cubes in the material the miner names, wood, stone, concrete or earth, and
+stands it in the Shatterlands. This is called an Echo. It’s never the object
+itself, only what the post remembers of it, and it can be cracked, cut and
+blasted like anything else.
+
+Echoes are never lost for good, because the post keeps every scan. Many
+miners return to the same one again and again, to see how it falls from a
+different angle.
+
+The miners say the Shatterlands aren’t a ruin.
+They’re a place where every wreck can be rebuilt and wrecked again.
+
+===============================================================================
+
+Shatterlands: Player Profile
+
+The Miner
+---------
+The player is a man who makes his living breaking ground and delivering
+stone. He carries an Impact Hammer, breaching charges, a Blower and a field
+checklist. His name, age and life before mining are open.
+
+He can spend most of a shift vacuuming rubble and still take pride in the
+few seconds it took to bring a ledge down exactly where he wanted it. He
+judges a blast by where the stone lands. If it falls within reach, he's
+saved himself a long afternoon.
+
+The First Camp
+--------------
+While looking for a place to work, the miner comes across a patch of land
+with an old survey post marking the First Blast. He stops to read it.
+
+    FIRST BLAST SURVEY
+    Bedrock untouched.
+    Loose stone recovered.
+    Second count: short.
+
+There's a mountain nearby. He sets off a charge against its side and opens a
+hollow big enough to shelter in. When the dust clears, he checks the cracks
+above the entrance, brings his gear inside and lays out his bedroll. The
+stone from the blast is still lying outside. In the morning, it'll go toward
+his first delivery.
+
+The Work
+--------
+A shift is mostly familiar work. Read the ground, break it, draw the loose
+rubble into the Blower, and put the recovered stone into storage through the
+field checklist. A delivery takes five hundred stored stone and pays one
+hundred credits.
+
+The miner gets better at choosing where to strike. Some days he chips away
+at a bank. Other days he finds the narrow neck holding up a shelf of earth
+and brings it down with one charge. Either way, he still has to gather the
+stone. On a bad afternoon he puts his hammer away, checks the tally, and
+takes it back out for the last twelve cubes.
+
+The Questions He Carries
+------------------------
+The surveyor's name is lost. The post says the second count came up short,
+but it leaves the miner to wonder what was missing. Where the delivered
+stone goes is another question. Ask an old miner and they'll tell you how
+much you're short.
+
+Game Status
+-----------
+The miner, his tools and the delivery terms come from the existing lore and
+beta. The survey post, its inscription and the mountain camp are proposed
+opening story beats. The post and camp are not implemented features of the
+current beta.
+

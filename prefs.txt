@@ -1,0 +1,1014 @@
+SHATTERLANDS BETA MASTER REFERENCE
+==================================
+
+[VERIFIED BY SOURCE REVIEW, 2026-11-09]
+Current sections below are based on Shatterlands-beta(1).py (14,033 lines).
+The launcher, embedded engine and embedded game passed syntax compilation.
+Gameplay and Windows launch were not tested.
+
+1. CURRENT BUILD
+================
+
+Launcher          | Shatterlands - beta, 380 × 500 nominal, single Launch game button.
+Settings          | Tab → Display, Scans, Controls. Display has Resolution, Frame Rate and Debris sections.
+Display defaults  | Fullscreen, 1920 × 1080 canvas, 120% scene scale, 60 FPS limit, VSync off.
+Cube detail       | 2 cubes per block edge. Set cubedetail-N (1–50) or cubedetail-max at launch.
+Cache             | cache beside the script by default. SHATTERLANDS_CACHE_DIR overrides the path.
+Launcher config   | engineui_config.json keeps launch commands. Checklist progress is session-only.
+Debris            | On, 100% amount. Optional 12,000 loose-debris cap starts off.
+Map               | 15 × 15 chunks, 15 blocks per chunk, 225 blocks across.
+Tool slots        | 1 Impact Hammer, 2 TNT, 3 Blower, 4 Checklist.
+Hammer            | Left-click to swing at fixed 1×.
+TNT               | Hold/release left-click to throw. Left-click after landing to detonate. One charge at fixed 1.5×.
+Blower            | Hold left-click for suction. Scroll down/up for 1×/2×. Stores only stone and clears other swallowed debris.
+Checklist         | Q or slot 4 + left-click. View 500-stone stacks and edit six personal task rows.
+Storage           | Checklist tab. Deposit all carried stone or withdraw up to 500.
+Jobs              | Checklist tab. Deliver 500 stored stone for 100 credits. Separate from the six personal tasks.
+Upgrades          | Checklist tab. Cost = 100 × (current level + 1). Purchase increments the level counter.
+Tools             | Checklist tab with tool help.
+World storage     | The hut, physical storage crates and B-key storage are absent.
+Target display    | The old cube-selection outline is absent. TNT can still show a charge label when aimed at.
+Reset damage      | Clears carried stone, active charges, debris and structures. Stored stone and credits stay in memory.
+
+Progress starts fresh each game launch. ChecklistProgress initializes stored stone,
+credits, completed jobs and upgrade level to zero. InventoryPanel creates six empty
+personal task rows. There is no HQ progress file read or write in this build.
+
+Current scan importer
+---------------------
+Put .cells files beside the game script, in the working directory, in scans/
+beside the script, or in ~/Downloads/scan_exports. Tab → Scans lists the exports
+and polls while open. Scans are resampled to the current cube detail and placed
+about four blocks ahead as fixed structures. The parser reads materials and
+[x, y, half_thickness, material_index] rows in cells. cubes_per_block defaults to 5.
+The format tag is not validated. Dirt, stone, wood and white concrete have
+material mappings. Leaf becomes planks. The external scanner remains unverified.
+
+Current source map (physical lines in the attached script)
+----------------------------------------------------------
+class DiskCache             | 997
+class DirtCubes             | 3969
+SETTINGS_TABS =             | 10795
+def default_settings        | 10874
+class InventoryPanel        | 11532
+def tool_reset              | 12344
+def blower_step             | 12521
+def c4_explode              | 12690
+SCAN_DIRS =                 | 13104
+def load_scan               | 13120
+def apply_launch_args       | 13255
+class ChecklistProgress     | 13322
+def run():                  | 13371
+
+The engine block starts after line 743 and the game block after line 10632.
+Add those offsets to embedded engine/game traceback lines respectively.
+Traceback module names are <shatterlands_engine> and <shatterlands_game>.
+
+To edit embedded code, run python "Shatterlands-beta(1).py" with
+--export-engine engine.py or --export-game game.py. Use --replace-engine
+engine.py or --replace-game game.py to put edited code back. A replacement
+keeps a .bak. Compile the exported modules separately when checking syntax.
+
+HISTORICAL ENGINE REFERENCE
+===========================
+
+Sections 2–4 and 6 below preserve earlier source notes. Their E/G line numbers,
+tuning tables and old controls refer to engineui(20261108-230121).py (13,969
+lines) or intermediate beta notes. The old offsets were E + 742 and G + 10299.
+Use the current build section for active controls, progression and file names.
+
+2. [EARLIER SOURCE REVIEW] IMPLEMENTED BEHAVIOR AND DEPARTURES FROM DESIGN INTENT
+=================================================================================
+
+Behavior recorded in the earlier source
+---------------------------------------
+- Cube detail is now fixed per run and defaults to 2 cubes per block (a cube is 0.5 block). CUBE_DETAIL_DEFAULT = 2 (G236). There is no cube-detail slider in the menu any more: you set it with the launch command cubedetail-N (N = 1 to 50) or cubedetail-max, in the launcher's cog dialog. The old docs said 5; that is no longer the default. The game resamples scans to the current detail and uses 5 as a fallback when a scan omits cubes_per_block; the scanner exporter itself was not verified.
+- Scanned objects (.cells files) are placed as ordinary fixed Structures, resampled to the current cube detail, so they can be cut, cracked and blasted.
+- The game sets struct_res equal to the cube detail (G3055, and every frame at G3373), so ordinary structure cells use the ground's cell size. Ground debris is half-sized, and large ground slabs may be coarsened; matching size also does not guarantee lattice-aligned placement. The engine's own default (STRUCT_RES = 2, E1899) is only used if the game does not override it.
+- Blast debris cubes and blast effect cubes are sized in ground cubes, so they follow the cube detail.
+- STRUCT_DEBRIS_SPLIT = 1 (E1901): a destroyed structure cell is offered as one cube of its own size before debris settings and collision filters (2 requests eight half-size cubes per cell).
+- SCOOP_STRICT = True (G1620): initial game-side blast sampling budgets are bypassed; one debris candidate per removed ground cube is requested. This is not guaranteed conservation. The spawn calls do not pass keep_all=True, so debris amount/on-off settings and terrain/structure collision filtering still discard candidates. C4_EXACT_MAX and C4_MAX_CUBES do not limit the initial sample while it is on (C4_EXACT_MAX still sets an awake-budget floor) (see the departures below). Set it to False to bring back the old budgets.
+- Small loose pieces crumble: a broken-off piece of 1.5 cubic blocks or less (CRUMBLE_BODY_VOLUME, G66) is turned into loose debris cubes by crumble_small_bodies (G69, called each frame at G3483) instead of falling as one big rigid cube.
+
+Where the game still departs from the rules
+-------------------------------------------
+Rule 1 (lattice cubes):
+- Matching structure cell size does not guarantee alignment with the terrain lattice. _stand_structure uses the supplied origin without snapping; scans are positioned relative to the player.
+- Blast effect cubes (fire, smoke, dust, sparks) are free-floating visual cubes of varying size, not on the lattice.
+- Ground slabs that fall as one rigid body use coarser cells (2x2x2 up to 6x6x6) when they hold more than 5000 cells (max_cells in add_ground_body, E7550).
+- The held tools (hammer, cannon, TNT, Blower), the planted TNT box (0.42 block) and the cannonball (1.5 ground cubes across, so not a whole number of cells) are drawn from boxes, not on the lattice.
+- The Blower's spray cubes are full ground-cube size but are fired as a moving stream, not placed on the lattice.
+
+Rule 2 (scoop rule):
+- Debris cube size does not match. Ground debris from TNT, hammer and cannon is drawn at C4_DEBRIS_SIZE (0.5) of a ground cube's edge. The ground-clearance factor C4_DEBRIS_SCALE is now 1.0 (it was 0.82), so the size is 0.5, not about 0.41. Neither count conservation nor matching size is guaranteed. (DirtCubes.spawn, E2788, sets the edge as size_scale * cell / level.)
+- Cut-off ground that is too small to become a slab (under SLAB_MIN_CELLS, 1500) crumbles to cubes. The old cap of SLAB_DEBRIS_MAX (3000 per blast) is skipped while SCOOP_STRICT is on, but the later spawn filters and debris settings can still drop cubes.
+- The earlier source used a 12,000-cube loose-debris limit at full debris amount. The beta cap is optional and starts off. Spawn filtering and awake-cube budgets are separate from the loose-debris cap.
+
+Related engine facts from the earlier source
+--------------------------------------------
+- STRUCT_UNBREAKABLE_CELLS is 40000 (was 2000), so shapes at full cube detail can still collapse.
+- Beta TNT is fixed at 1.5×. Section 4.2 retains the earlier 1× values as a tuning reference.
+- The map is smaller: MAP_RADIUS = 7 (G1454), 7 chunks each way from spawn (15 x 15 chunks, 225 blocks across), loaded once. It used to be 15.
+- The test cube (BENCH_*) is gone from the engine and the game.
+
+-----------------------------------------------------------------------------------------------
+
+3. [EARLIER SOURCE REVIEW] CODE MAP
+===================================
+
+Game block (G lines)
+--------------------
+
+Lines        | Section              | Search for
+-------------+----------------------+---------------------------------------------------------------
+1 to 63      | Header, SPAWN_TREES  | import voidcraft_engine
+             | (G5) / SPAWN_HUT     |
+             | (G6) switches,       |
+             | loading helpers      |
+             | _emit (19),          |
+             | _window_ready (27),  |
+             | engine imports       |
+65 to 83     | CRUMBLE_BODY_VOLUME  | def crumble_small_bodies
+             | and                  |
+             | crumble_small_bodies |
+85 to 152    | GAME info dict and   | GAME = {
+             | exported-names list  |
+154          | TNT_MAX              | TNT_MAX
+156 to 209   | Settings menu:       | SETTINGS_TABS
+             | SETTINGS_TABS        |
+             | (DISPLAY, GRAPHICS,  |
+             | SCANS, CONTROLS),    |
+             | GFX_TAB, SCANS_TAB,  |
+             | SCAN_TOP/SCAN_ROW_H/SCAN_VIS |
+             | (208)                |
+217 to 244   | _NoCache stand-in,   | def default_settings
+             | CACHE,               |
+             | CUBE_DETAIL_DEFAULT  |
+             | (236),               |
+             | default_settings()   |
+             | (239)                |
+246 to 384   | TabMenu              | class TabMenu
+386 to 398   | Panel colours        | UI_BG
+             | (UI_*), _mono        |
+400 to 497   | Overlay (base),      | class Overlay
+             | ResetPanel (the R    |
+             | menu)                |
+499 to 804   | SettingsPanel (draws | class SettingsPanel
+             | and clicks the       |
+             | panel, including the |
+             | scans list)          |
+806 to 872   | _CachedOverlay,      | class _CachedOverlay
+             | aimed_cell,          |
+             | integrity_state      |
+873 to 982   | HUD: Crosshair,      | class InventoryPanel
+             | TargetLabel, InvHud, |
+             | InventoryPanel (928, |
+             | the Q panel),        |
+             | DebrisTint           |
+984 to 1282  | G monitor: MON_*     | class PerfOverlay
+             | constants (984 to    |
+             | 1001), _MON_FRAG     |
+             | shader (1003),       |
+             | PerfOverlay (1037)   |
+1284 to 1440 | SURVIVAL_ON (1284,   | SURVIVAL_ON
+             | off), Survival,      |
+             | SurvivalHud,         |
+             | LoadingScreen        |
+             | (1362), _FpsMeter    |
+             | (1424), FPS (1440)   |
+1446 to 1503 | First-person drawing | tnt_held_prims
+             | helpers: _held_axes, |
+             | MAP_RADIUS (1454),   |
+             | _lp, _obox, _flush,  |
+             | tnt_held_prims       |
+1505 to 1554 | Stone/dirt rules:    | _stone_mask
+             | STONE_DEPTH,         |
+             | BEDROCK_BLOCKS,      |
+             | _stone_mask,         |
+             | _restore_stone       |
+1556 to 1660 | TNT charge:          | C4_RADIUS, def c4_prims
+             | c4_prims, c4_aimed,  |
+             | C4_* constants (1600 |
+             | to 1658),            |
+             | _crumble_dir (1643)  |
+1662 to 1726 | Blast size:          | def set_blast_scale
+             | BLAST_BASE_SCALE,    |
+             | BLAST_MULT_*,        |
+             | TOOL_MULT_MAX,       |
+             | TOOL_MULT, BLAST,    |
+             | set_blast_scale      |
+             | (1680),              |
+             | _wave_velocity       |
+             | (1702)               |
+1729 to 1784 | update_debris,       | def update_debris
+             | _surface_normal      |
+1787 to 1860 | TNT throw: THROW_*,  | def throw_path
+             | throw_velocity,      |
+             | throw_path (1804),   |
+             | arc_prims,           |
+             | flight_pos           |
+1862 to 2212 | Tools (keys 1 to 4): | def tool_step, def tool_crater, def blower_step
+             | T_HAMMER/T_CANNON/T_TNT/T_BLOWER, |
+             | TOOL_NAMES,          |
+             | TOOL_HINTS, TOOL_*,  |
+             | HAMMER_*, CANNON_*,  |
+             | TS state, held       |
+             | models               |
+             | (tool_held_prims     |
+             | 1923), tool_ray      |
+             | (1956), tool_crater  |
+             | (1970), ball_prims   |
+             | (2017), Blower       |
+             | (BLOW_* 2029, BLOW,  |
+             | SUCK_*, SPRAY_*,     |
+             | spray_cubes 2040,    |
+             | blower_step 2083),   |
+             | tool_step (2142)     |
+2215 to 2306 | Falling ground:      | SLAB_SCAN_MARGIN
+             | SLAB_* (2215),       |
+             | _drop_groups (2221), |
+             | _drop_cut_ground     |
+             | (2246), COLLAPSE_*   |
+             | (2252),              |
+             | _schedule_collapse   |
+             | (2257),              |
+             | _spawn_ground_debris |
+             | (2272),              |
+             | update_collapse      |
+             | (2282)               |
+2309 to 2396 | c4_explode: the      | def c4_explode
+             | blast (crater,       |
+             | scoop-rule debris,   |
+             | structures, slabs)   |
+2398 to 2651 | FX_COUNT_MAX (2398)  | class BlastFX
+             | and BlastFX (2401):  |
+             | fire, smoke, sparks, |
+             | dust, camera shake   |
+2653 to 2723 | ToolBar (the bottom  | class ToolBar
+             | toolbar)             |
+2725 to 2816 | Starter hut (off by  | build_hut
+             | default):            |
+             | _hut_design,         |
+             | _scaled,             |
+             | _stand_structure     |
+             | (2777, puts any      |
+             | material grid on the |
+             | ground as a          |
+             | Structure),          |
+             | build_hut (2796)     |
+2819 to 2965 | Scans: SCAN_DIRS     | def load_scan, class ScanLibrary
+             | (2820), SCAN_MAT     |
+             | (2821), newest_scan, |
+             | load_scan (2836),    |
+             | spawn_scan (2858),   |
+             | ScanLibrary (2886),  |
+             | _age_text, SCAN_LIB  |
+             | (2965)               |
+2968 to 3020 | CUBE_DETAIL_MAX      | apply_launch_args
+             | (50),                |
+             | apply_launch_args    |
+             | (2971):              |
+             | cubedetail-N,        |
+             | cubedetail-max,      |
+             | fps-N, scale-N,      |
+             | debris-N/debris-off, |
+             | cpuphysics, nocache  |
+3022 to 3032 | _menu_mouse_pos      | _menu_mouse_pos
+3034 to 3656 | run(), the game      | def run
+             | (below)              |
+3657         | main()               | def main
+
+Inside run() (G3034 to G3656)
+-----------------------------
+
+Lines          | What happens
+---------------+-------------------------------------------------------------------------
+3035           | set_blast_scale(BLAST['m']) applies the starting 1x multiplier
+3036 to 3078   | Window, loader, sounds, GPU compute, default_settings, apply_launch_args
+               | (3054), struct_res = dirt_cubes (3055), TabMenu, panels; place_scan(i)
+               | (3061, SCANS tab)
+3080 to 3135   | set_ground_res (3080), World (3081), Renderer (3082), player, Arsenal,
+               | PostFX (3098), DirtBodyRenderer (3103), StructureRenderer (3108),
+               | InventoryPanel (3132), HUDs
+3136           | mon_counts() (the numbers on the G monitor)
+3137 to 3194   | Pre-loads the map behind the loading screen
+3195           | Main while running: loop
+3243 to 3370   | Input: Esc/quit (3243), R reset menu keys (3247), Tab menu (3268), menu
+               | wheel (3278), menu click (3281), left click press_click (3301), right
+               | click det_click (3305), scroll wheel = tool power (3307), keys 1 to 4
+               | pick a tool (3322), Q inventory (3329), X grid (3331), V fly (3333), G
+               | monitor (3336), H compact/detail (3339), R reset (3361)
+3373 to 3426   | Per-frame settings: struct_res re-synced (3373), cache switches,
+               | clear-cache action, graphics presets
+3427 to 3445   | Modal handling (menu or reset panel up, world frozen); live scan list
+               | SCAN_LIB.poll (3427)
+3446 to 3545   | Gameplay: chunks and trees (3454), hut (3457), STRUCTS.update (3482),
+               | crumble_small_bodies (3483), update_collapse (3484), update_debris
+               | (3486), tool_step (3503), TNT throw and plant (3505), detonation loop
+               | (3532: c4_explode 3537, then blast_fx.spawn 3540), blast_fx.update
+               | (3544)
+3546 to 3648   | Sun shadow map (shadow.update 3563), the menu-open frame (post.apply
+               | 3578, settings_panel.draw 3586), the normal frame (post.apply 3619:
+               | bloom, contrast, sharpness), HUD, perf.draw (3642)
+3649           | pygame.display.flip
+
+Launcher (engineui.py lines 1 to 741)
+-------------------------------------
+
+Lines          | Section
+---------------+-------------------------------------------------------------------------
+1 to 40        | Header and notes on the loading protocol, BEGIN_MARK/GAME_BEGIN_MARK
+               | names
+42 to 219      | engine_source (42), install_engine (46), game_source (64), is_builtin
+               | (68), game_label (72), install_game (77), run_game (89), launch (121),
+               | tail_log (154), export_engine (159), replace_engine (165), export_game
+               | (189), replace_game (195)
+220 to 712     | gui(), the launcher window; saved launch commands and the
+               | launch-arguments dialog are around lines 450 to 560
+713 to 742     | main() and the engine begin marker (742)
+
+Engine block (E lines; engineui.py = E + 742)
+---------------------------------------------
+
+Lines        | Section              | Key names
+-------------+----------------------+---------------------------------------------------------------
+1 to 34      | Imports              |
+35           | Optional GPU compute | _gpu_init
+60 to 147    | Globals and          | set_ground_res
+             | settings: TARGET_FPS |
+             | 60, FOV 65, movement |
+             | 66 to 68, NEAR/FAR   |
+             | 107,                 |
+             | GRAVITY/JUMP_VEL 108 |
+             | to 109, CHUNK_SIZE   |
+             | 110, CELL/GS 111,    |
+             | player size 112 to   |
+             | 114, WIDTH/HEIGHT    |
+             | 106, FLAT_SURFACE_Y  |
+             | 119, TERRAIN_GEN_MAX |
+             | 128, water and       |
+             | altitude 130 to 132, |
+             | set_ground_res 137   |
+148 to 248   | Noise,               | def terrain_height
+             | terrain_height       |
+             | (175), ChunkData     |
+             | (197)                |
+249 to 421   | Disk cache:          | class DiskCache
+             | DiskCache (249),     |
+             | DISK_CACHE (393),    |
+             | generate_chunk (408) |
+422 to 943   | _DirtySet,           | class World
+             | ChunkCache (432),    |
+             | World (466; methods  |
+             | below)               |
+944 to 1522  | Chunk mesher:        | class MeshWorker
+             | _padded_occ (944),   |
+             | _greedy_rects (968), |
+             | _mesh_cubes (996),   |
+             | MeshWorker (1099),   |
+             | quality and LOD      |
+             | presets              |
+             | (QUALITY_NAMES 1135, |
+             | LOD_NAMES 1141,      |
+             | quality_snapshot     |
+             | 1155), camera maths, |
+             | shaders (_VERT_SRC   |
+             | 1357, _FRAG_SRC      |
+             | 1376, _OVL_VERT      |
+             | 1458, _OVL_FRAG      |
+             | 1469),               |
+             | _compile_shader      |
+             | 1479, _link_program  |
+             | 1487                 |
+1523 to 1994 | Renderer (1523, draw | class Renderer
+             | 1764), GpuPoller     |
+             | (1853),              |
+             | unload_far_chunks,   |
+             | player collision     |
+             | (_box_hits_solid     |
+             | 1910), debris        |
+             | amount/wobble/strength/struct-res |
+             | settings (1896 to    |
+             | 1901)                |
+1995 to 2386 | Sound: _Synth        | class SoundFX
+             | (1995), SoundFX      |
+             | (2160), global SFX   |
+             | (2371), _mat_at      |
+             | (2374)               |
+2387 to 2575 | PlayerController     | class PlayerController
+             | (2387),              |
+             | _fit_window_to_display |
+             | (2498)               |
+2576 to 2733 | Cube-ground helpers: | def _support
+             | _density_many 2576,  |
+             | _cell_contact 2583,  |
+             | _density_batch 2614, |
+             | _support 2657,       |
+             | _downhill 2663,      |
+             | _struct_push 2677,   |
+             | _terrain_push 2709   |
+2734 to 3475 | Loose debris cubes:  | class DirtCubes
+             | constants (2541 to   |
+             | 2553), DirtCubes     |
+             | (2734), BODIES       |
+             | (3311), topple       |
+             | (3313),              |
+             | DirtBodyRenderer     |
+             | (3405)               |
+3476 to 3555 | Structure physics    | STRUCT_GRAVITY
+             | constants (STRUCT_*, |
+             | WOBBLE, AXE_*,       |
+             | STRUCT_MATERIALS     |
+             | 3519, STRENGTH 3532, |
+             | ARCH_*),             |
+             | apply_wobble (3488)  |
+3556 to 6201 | Embedded material    | _TILE_PNG
+             | textures. Do not     |
+             | open                 |
+6203 to 6382 | Texture decode       | _label_cells
+             | (_decode_tiles),     |
+             | quaternion helpers,  |
+             | _label_cells (6345)  |
+6383 to 6695 | GridObject: cell     | class GridObject
+             | grid, exposed faces, |
+             | meshing              |
+6696 to 7190 | Structure: bonds,    | class Structure
+             | support checks,      |
+             | cracking, detaching  |
+             | pieces; DENT_RIM_*   |
+             | (6813)               |
+7191 to 7448 | RigidBody: mass,     | class RigidBody
+             | contacts, solver,    |
+             | step                 |
+7449 to 7883 | MAX_LOOSE_BODIES     | class StructureManager
+             | (7449), _chop_object |
+             | (7452),              |
+             | StructureManager     |
+             | (7517; STRUCTS 7874) |
+7879 to 8298 | Garden bed (BED_*    | class GardenBed
+             | 7879, GardenBed      |
+             | 7884), trees         |
+             | (NUM_TREES 8027,     |
+             | tree_spots 8031,     |
+             | make_tree 8055,      |
+             | build_trees 8135),   |
+             | inv_note (8151),     |
+             | check_chopped        |
+             | (8155), Planting     |
+             | (8171)               |
+8299 to 8394 | ShadowMap            | class ShadowMap
+8395 to 8454 | G overlay views:     | make_ground_dmg_views
+             | GroundDmgView        |
+             | (8395),              |
+             | make_ground_dmg_views |
+             | (8406)               |
+8455 to 8764 | StructureRenderer,   | class StructureRenderer
+             | body/debris helpers  |
+             | (_cells_to_debris    |
+             | 8656, _piece_of      |
+             | 8665, _split_body    |
+             | 8679), ChunkGrid     |
+             | (8715)               |
+8765 to 9019 | SceneTarget (8765),  | class PostFX
+             | _POST_COMP shader    |
+             | (8878), PostFX       |
+             | (8907; apply 8971:   |
+             | bloom, contrast,     |
+             | sharpness)           |
+9020 to 9198 | FrameTarget (9020),  | class Backdrop
+             | _set_vsync (9085),   |
+             | Backdrop (9109)      |
+9199 to 9340 | Frame monitor        | class Timed
+             | machinery for the G  |
+             | panel: Timed 9199,   |
+             | Profiler 9222,       |
+             | GpuTimers 9251, PROF |
+             | 9314, GT 9315        |
+9341 to 9552 | Ray and aim helpers  | class Arsenal
+             | (_first_hit 9341,    |
+             | structure_hit_face   |
+             | 9380, aim_target     |
+             | 9397), WeaponFX      |
+             | (9445), Arsenal      |
+             | (9505)               |
+
+Methods you will touch most
+---------------------------
+
+Class                   | Methods (engine line)
+------------------------+-------------------------------------------------------------------------
+World (466)             | dig 501, dig_n 550, _changed_chunks 580, cells_box 600, clear_cells 619,
+                        | settle 643, settle_islands 674, add_damage 729, weak_islands 779,
+                        | reset_damage 862, reset_all 879, take_dug_cells 893, ensure_chunk 898
+DiskCache (249)         | load_terrain 301, save_terrain 312, submit_mesh 326, clear 381
+DirtCubes (2734)        | spawn 2788, spawn_chunks 2852, _separate 2927, update 3089, instances
+                        | 3301
+GridObject (6383)       | _geometry 6406, mesh 6610, _mesh_region 6639, _integrity_rgb 6688
+Structure (6696)        | refresh_anchors 6729, dent 6817, blast 6859, check_plane 6970, update
+                        | 7117, _detach 7168
+RigidBody (7191)        | from_cells 7209, topple 7243, blast 7254, _contacts 7277, _solve 7352,
+                        | step 7398
+StructureManager (7517) | ground_y 7530, add 7539, add_ground_body 7550, on_terrain_changed 7613,
+                        | blast 7624, chop 7653, _throw_chunks 7745, update 7790, raycast 7857
+PostFX (8907)           | apply 8971
+
+Where is... (feature to code)
+-----------------------------
+
+Feature                       | Game (G)             | Engine (E)
+------------------------------+----------------------+---------------------------------------------------------------
+TNT throw, plant and detonate | throw_path 1804, run | StructureManager.blast 7624
+                              | 3505 to 3544,        |
+                              | c4_explode 2309      |
+Hammer and cannon             | tool_step 2142,      | World.dig 501, StructureManager.blast
+                              | tool_crater 1970     |
+Blower (suck, spray)          | blower_step 2083,    | DirtCubes.spawn_chunks 2852
+                              | spray_cubes 2040,    |
+                              | BLOW 2032,           |
+                              | InventoryPanel 928   |
+Earlier wheel multiplier code | run 3307, TOOL_MULT  | none
+                              | 1668,                |
+                              | set_blast_scale 1680 |
+Crater and loose debris       | c4_explode,          | World.dig, DirtCubes 2734
+                              | update_debris 1729   |
+Small loose pieces crumble    | crumble_small_bodies | _cells_to_debris 8656, StructureManager._throw_chunks 7745
+                              | 69                   |
+Cut-off ground falls as a     | _drop_cut_ground     | World.settle_islands 674, World.weak_islands 779,
+slab                          | 2246,                | StructureManager.add_ground_body 7550
+                              | update_collapse 2282 |
+Explosion look (fire, smoke,  | BlastFX 2401         | DirtBodyRenderer 3405
+sparks, shake)                |                      |
+Bloom, contrast, sharpness    | run 3578 and 3619,   | PostFX 8907
+                              | default_settings 239 |
+G monitor                     | PerfOverlay 1037,    | PROF 9314, GT 9315, make_ground_dmg_views 8406
+                              | mon_counts 3136,     |
+                              | perf.draw 3642       |
+Scans                         | ScanLibrary 2886,    | Structure 6696
+                              | load_scan 2836,      |
+                              | spawn_scan 2858,     |
+                              | place_scan 3061      |
+Disk cache                    | Former Graphics tab  | DiskCache 249, DISK_CACHE 393
+                              | rows in              |
+                              | SETTINGS_TABS        |
+Cube detail (set at launch)   | apply_launch_args    | set_ground_res 137
+                              | 2971, run 3080       |
+Settings menu                 | SETTINGS_TABS 163,   | none
+                              | TabMenu 246,         |
+                              | SettingsPanel 499    |
+Rigid body physics            | none                 | RigidBody 7191
+Structure cracking and        | none                 | Structure 6696
+collapse                      |                      |
+Terrain shape and start area  | none                 | terrain_height 175, generate_chunk 408
+Sound                         | none                 | SoundFX 2160 (SFX 2371)
+Sun shadows                   | run 3563             | ShadowMap 8299
+                              | (shadow.update)      |
+Hut (off)                     | build_hut 2796       | none
+
+-----------------------------------------------------------------------------------------------
+
+4. [EARLIER SOURCE REVIEW] TUNING REFERENCE
+===========================================
+
+Key tuning values and legacy constants, their source locations, and their current effects. Inactive constants are marked explicitly.
+
+- Distances are in blocks. One ground cube is 1 / cube detail blocks: 0.5 block at the default detail of 2.
+- Beta tool settings. Hammer is fixed at 1× and TNT at 1.5×. Consult the current controls above for Blower behavior. Constants and offsets below are from the earlier source.
+
+4.1 Menu and look settings (default_settings, G239 to G244)
+-----------------------------------------------------------
+
+The launcher starts at 380 x 500 (height reduced on short screens). The game/menu canvas is fixed at 1920 x 1080; 120% scene rendering targets 2304 x 1296. Launcher commands persist in engineui_config.json and are reapplied on each launch, without rewriting the coded game defaults.
+
+Setting                       | Value                | Notes
+------------------------------+----------------------+---------------------------------------------------------------
+bloom                         | 70                   | Glow around bright things, 0 to 100. No menu slider
+contrast                      | 103                  | 100 is unchanged. No menu slider
+sharpness                     | 80                   | 0 to 100. Menu slider in DISPLAY (was 45)
+shake                         | 200                  | Percent of the blast shake. No menu slider
+render_scale                  | 120                  | Resolution percent (25 to 150). Menu slider (was 100)
+fps_limit                     | 60                   | 0 is uncapped. Menu slider 0 to 240 in steps of 30
+vsync                         | False                | Menu toggle
+fullscreen                    | True                 | Not in the menu; applied at G3205
+fov                           | 110 (FOV, E65)       | Field of view
+quality, lod, shadow_quality, | 3, 0, 1, 3           | Graphics preset (Custom), terrain LOD off, shadows Low 1024,
+shadow_update                 |                      | shadow update interval. No menu rows now
+gpu_physics                   | True                 | cpuphysics launch command turns it off
+dirt_cubes                    | 2                    | Cubes per block. Fixed for the run; set with cubedetail-N (1
+                              | (CUBE_DETAIL_DEFAULT, | to 50, CUBE_DETAIL_MAX G2968)
+                              | G236)                |
+cube_sleep_time               | 0.3                  | Seconds a debris cube must be still before it sleeps
+cache_terrain, cache_meshes   | True, True           | Earlier cache flags and nocache launch option. The beta folder
+                              |                      | is cache
+debris_on / debris_amount     | True / 100           | Earlier launch options. The beta cap toggle is under Display →
+                              | (DEBRIS_AMOUNT,      | Debris
+                              | E1896)               |
+wobble / strength             | 50 / 100 (WOBBLE_PCT | Fixed
+                              | E1897, STRENGTH_PCT  |
+                              | E1898)               |
+struct_res                    | engine default 2     | Set equal to dirt_cubes by the game (G3055, G3373)
+                              | (STRUCT_RES, E1899)  |
+
+The beta settings tabs are Display, Scans and Controls. Controls scrolls and separates Player and Tools bindings.
+
+4.2 TNT and the blast (game, G154 and G1600 to G1726)
+-----------------------------------------------------
+
+The 1× column records the earlier build at its starting blast scale of 0.75. Distances scaled linearly and relevant speeds scaled with the square root of scale. The beta uses fixed 1.5× TNT.
+
+Name                       | Line                   | Base       | Earlier build (1×) | What it does
+---------------------------+------------------------+------------+--------------------+-------------------------
+TNT_MAX                    | G154                   | 2          | 2                  | Charges that can be
+                           |                        |            |                    | planted at once
+C4_BOX_SIZE                | G1600                  | 0.42       | 0.42               | Edge length of a planted
+                           |                        |            |                    | charge
+C4_RADIUS                  | G1615                  | 1.5        | 1.125              | Blast radius on
+                           |                        |            |                    | structures
+C4_CRATER                  | G1616                  | 1.9        | 1.425              | Ground crater radius
+C4_PUSH_R                  | G1617                  | 4.0        | 3.0                | Loose cubes within this
+                           |                        |            |                    | distance are shoved
+C4_MAX_CUBES               | G1618                  | 650        | 487                | Debris sample cap, only
+                           |                        |            |                    | used when SCOOP_STRICT
+                           |                        |            |                    | is False
+C4_EXACT_MAX               | G1619                  | 2600       | 2600               | Only used when
+                           |                        |            |                    | SCOOP_STRICT is False;
+                           |                        |            |                    | also the floor for
+                           |                        |            |                    | HARD_AWAKE_CUBES
+SCOOP_STRICT               | G1620                  | True       | True               | Bypasses initial
+                           |                        |            |                    | game-side sampling;
+                           |                        |            |                    | later
+                           |                        |            |                    | filtering/settings/caps
+                           |                        |            |                    | still apply
+C4_DEBRIS_SCALE            | G1621                  | 1.0        | 1.0                | Clearance between a
+                           |                        |            |                    | debris cube and its
+                           |                        |            |                    | original slot (was 0.82)
+C4_DEBRIS_SIZE             | G1622                  | 0.5        | 0.5                | Debris cube edge
+                           |                        |            |                    | relative to a ground
+                           |                        |            |                    | cube
+C4_UP_MIN, C4_UP_MAX       | G1623                  | 7.0, 13.0  | same               | INACTIVE: defined but
+                           |                        |            |                    | not read by current
+                           |                        |            |                    | blast behavior
+C4_ANG_MIN, C4_ANG_MAX     | G1624                  | 35, 75     | same               | INACTIVE: defined but
+                           |                        |            |                    | not read by current
+                           |                        |            |                    | blast behavior
+C4_SPEED_MUL               | G1625                  | 1.4        | 1.4                | Multiplies non-ground
+                           |                        |            |                    | TNT ejection only;
+                           |                        |            |                    | ground ripple uses
+                           |                        |            |                    | _wave_velocity
+C4_RING_FRAC               | G1626                  | 0.2        | 0.2                | INACTIVE: defined but
+                           |                        |            |                    | not read by current
+                           |                        |            |                    | blast behavior
+C4_WALL_MIN, C4_WALL_MAX   | G1627                  | 8, 14      | 6.9, 12.1          | Speed of wall debris
+C4_RING_MIN, C4_RING_MAX   | G1628                  | 3.5, 5.5   | same               | INACTIVE: defined but
+                           |                        |            |                    | not read by current
+                           |                        |            |                    | blast behavior
+C4_PUSH                    | G1629                  | 7.0        | 7.0                | INACTIVE: defined but
+                           |                        |            |                    | not read by current
+                           |                        |            |                    | blast behavior
+C4_SPREAD_MIN,             | G1632                  | 1.5, 4.5   | same               | INACTIVE: defined but
+C4_SPREAD_MAX              |                        |            |                    | not read by current
+                           |                        |            |                    | blast behavior
+CRUMBLE_KICK               | G1633                  | 2.0        | 2.0                | Extra downhill speed
+                           |                        |            |                    | given to blasted cubes
+CRUMBLE_PULL               | G1634                  | 20.0       | 20.0               | Downhill pull on moving
+                           |                        |            |                    | cubes that touch the
+                           |                        |            |                    | ground
+DEBRIS_STONE_DARKEN,       | G1635, G1636           | 0.6, 0.85  | same               | Debris colour multiplier
+DEBRIS_DIRT_DARKEN         |                        |            |                    |
+C4_BURST                   | G1637                  | 3.0        | 2.6                | Outward speed at the
+                           |                        |            |                    | blast edge
+C4_JITTER                  | G1638                  | 1.8        | 1.56               | Random per-cube speed
+CRUMBLE_MAX_SPEED,         | G1639, G1640           | 3.0, 0.9   | same               | Top sideways speed; how
+CRUMBLE_REACH              |                        |            |                    | far to look for the
+                           |                        |            |                    | slope
+C4_WAVE_ANG_HI,            | G1655                  | 72, 54     | same               | Launch angle at the
+C4_WAVE_ANG_LO             |                        |            |                    | crater centre and at its
+                           |                        |            |                    | rim
+C4_WAVE_NEAR               | G1656                  | 1.0        | 0.75               | Where the nearest cubes
+                           |                        |            |                    | land, past the rim
+C4_WAVE_SPREAD             | G1657                  | 7.0        | 5.25               | Extra throw distance for
+                           |                        |            |                    | centre cubes (the
+                           |                        |            |                    | ripple)
+C4_WAVE_AIM_JITTER         | G1658                  | 8          | 8                  | Random aim in degrees
+BLAST_BASE_SCALE           | G1664                  | 0.75       | 0.75               | Blast scale at 1x
+BLAST_MULT_MIN,            | G1665                  | 0.5, 0.5   | same               | Lowest multiplier, size
+BLAST_MULT_STEP            |                        |            |                    | of one wheel notch
+BLAST_MULT_MAX             | G1666                  | 1.5        | 1.5                | TNT's top multiplier
+Visual-effect stagger      | G3540 (delay=0.07 * i) | 0.07 s     | 0.07 s             | Visual-effect delay
+                           |                        |            |                    | only; all charge physics
+                           |                        |            |                    | explosions execute
+                           |                        |            |                    | immediately in the same
+                           |                        |            |                    | loop
+
+set_blast_scale also scales the engine's awake limits: MAX_AWAKE_CUBES becomes 500 x max(1, scale^1.5) (cap 11,500) and HARD_AWAKE_CUBES becomes the larger of 700 x max(1, scale^1.5) and C4_EXACT_MAX (cap 12,000). At 1x that is 500 and 2600, not the 700 written in the engine. C4_MAX_CUBES grows to at most 11,000 and SLAB_DEBRIS_MAX grows with scale squared above 1.
+
+4.3 Falling slabs (cut-off ground)
+----------------------------------
+
+Name                       | Line                       | Value            | What it does
+---------------------------+----------------------------+------------------+------------------------------------
+SLAB_SCAN_MARGIN           | G2215                      | 8.0              | Blocks past the crater that are
+                           |                            |                  | checked; a ledge must fit inside to
+                           |                            |                  | be found whole
+SLAB_MIN_CELLS             | G2216                      | 1500             | A cut-off group smaller than this
+                           |                            |                  | crumbles to cubes
+SLAB_MAX_CELLS             | G2217                      | 600,000          | Larger groups stay put
+SLAB_DEBRIS_MAX            | G2218                      | 3000             | Most cubes made from small groups
+                           |                            |                  | in one blast (base). Only applied
+                           |                            |                  | when SCOOP_STRICT is False
+COLLAPSE_HANG,             | G2252, G2253               | 1.5 s, 0.3 s     | How long a ledge just over its
+COLLAPSE_MIN               |                            |                  | limit hangs before failing, and the
+                           |                            |                  | shortest delay
+CRUMBLE_BODY_VOLUME        | G66                        | 1.5              | Loose pieces of this many cubic
+                           |                            |                  | blocks or less turn into debris
+                           |                            |                  | cubes
+max_scan                   | E674 (settle_islands),     | 1,500,000        | Cap on how many cubes the island
+                           | E779 (weak_islands)        |                  | scan looks at
+DMG_SOFT                   | E460                       | 0.35             | Ground damaged past this holds
+                           |                            |                  | nothing up
+max_cells                  | E7550 (add_ground_body)    | 5000             | A slab with more cubes is rebuilt
+                           |                            |                  | from bigger cells (2x2x2, up to
+                           |                            |                  | 6x6x6)
+Slab push                  | E7586                      | 1.2              | Speed away from the blast
+                           |                            |                  | (blocks/s)
+Slab spin                  | E7587                      | 0.9 / sqrt(size) | Spin that tips the top away
+STRUCT_MIN_BODY_CELLS      | E3506                      | 6                | Smallest group that can be a rigid
+                           |                            |                  | body
+MAX_LOOSE_BODIES           | E7449                      | 80               | More loose bodies than this and the
+                           |                            |                  | smallest become debris
+
+4.4 Blast effects (game, BlastFX)
+---------------------------------
+
+Name          | Line       | Value      | What it does
+--------------+------------+------------+-----------------------------------------------------------------------
+FX_COUNT_MAX  | G2398      | 8.0        | Most the effect's cube count is multiplied by at fine cube detail
+MAX           | G2411      | 4000       | Effect cubes alive at once
+FIREBALL_LIFE | G2412      | 1.4        | How long the fireball burns, times the original
+FIREBALL_LEAN | G2413      | 1.6        | How far the fireball's cubes lean upward
+FIRE_RISE     | G2414      | 5.5        | Upward acceleration of burning cubes
+SMOKE_CLOUD   | G2415      | False      | True brings back the grey smoke cloud
+CLOUD_SCALE   | G2416      | 0.85       | Size of the smoke cloud (only matters when on)
+SHAKE         | G2417      | 0.045      | Strongest camera shake in radians. Final shake = this x shake setting
+              |            |            | / 100
+Shake decay   | G2576      | exp(-5 dt) | How fast the shake dies away
+
+The rest of the fire, dust and spark numbers are inside BlastFX.spawn and _move, not named constants.
+
+4.5 Post-processing (engine PostFX, apply at E8971)
+---------------------------------------------------
+
+Item                       | Line               | Value      | What it does
+---------------------------+--------------------+------------+--------------------------------------------------
+Bloom threshold            | E8993              | 0.82       | Brightness above which things glow
+Threshold ramp             | E8853              | 0.18       | How softly the glow fades in above the threshold
+Glow, contrast and         | _POST_COMP (E8878) | n/a        | Contrast scales colours around mid-grey;
+sharpness maths            |                    |            | sharpness is an unsharp mask
+
+4.6 World (engine)
+------------------
+
+Name                       | Line         | Value      | What it does
+---------------------------+--------------+------------+--------------------------------------------------------
+FLAT_SURFACE_Y             | E119         | 10         | Height of the grass at the start point
+TERRAIN_GEN_MAX            | E128         | 48         | Natural land never rises above this
+TERRAIN_MAX_H              | E129         | 48         | Tallest column the grid has room for
+WATER_Y, DIRT_ALT,         | E130 to E132 | 6, 19, 27  | Water line, bare-dirt altitude, stone altitude
+STONE_ALT                  |              |            |
+CHUNK_SIZE                 | E110         | 15         | Blocks per chunk side
+MAP_RADIUS                 | G1454        | 7          | Chunks each way kept loaded (15 x 15 chunks); was 15
+NEAR, FAR                  | E107         | 0.05, 450  | Camera planes; FAR was 300
+STONE_DEPTH                | G1505        | 1.5        | Dirt thickness before the colour turns grey
+BEDROCK_BLOCKS             | G1506        | 1.0        | Unbreakable bottom layer, in blocks
+MESH_WORKERS,              | E61, E62     | 2, 6       | Mesh building; the loading screen raises
+MESH_MAX_PENDING           |              |            | MESH_MAX_PENDING to 128 and restores it
+LOD_RINGS                  | E1143        | per preset | Terrain level-of-detail rings (replaces the old
+                           |              |            | render-distance setting)
+
+4.7 Loose debris cubes (engine)
+-------------------------------
+
+Name                       | Line           | Value                      | What it does
+---------------------------+----------------+----------------------------+--------------------------------------
+WASH_DELAY, WASH_FADE      | E2541, E2542   | 2.0, 1.5                   | Seconds under water before washing
+                           |                |                            | away, then shrinking
+BODY_MAX                   | E2543          | 12000                      | Earlier spawn and update limit. The
+                           |                |                            | beta loose-debris cap is optional and
+                           |                |                            | off by default
+MAX_AWAKE_CUBES            | E2544          | 500                        | Soft awake target: supported cubes
+                           |                |                            | may be put to sleep to approach it
+HARD_AWAKE_CUBES           | E2545          | 700 (2600 in play)         | Absolute most per frame
+BODY_GRAVITY               | E2546          | 14.0                       | Blocks per second squared
+BODY_MAX_FALL              | E2547          | 9.0                        | Terminal speed
+BODY_FRICTION              | E2548          | 6.0                        | Sideways slow-down
+SEP_WAKE_DEPTH             | E2549          | 0.06                       | Overlap with a neighbour deeper than
+                           |                |                            | this keeps a cube awake
+JAM_MOVE, JAM_TIME_MUL     | E2550, E2553   | 0.10, 3.0                  | A wedged cube that moves less than
+                           |                |                            | this for 3x the sleep time sleeps
+PROGRESS_R, PROGRESS_TIME  | E2551, E2552   | 0.05, 1.0                  | A cube within this distance for this
+                           |                |                            | long, with support, is at rest
+SEP_SLOP                   | E2941          | 0.003                      | Overlap tolerated between cubes
+TOPPLE_MIN, TOPPLE_FULL,   | E3313 to E3315 | 0.18, 0.5, 16.8            | A cube on another slides off when
+TOPPLE_ACCEL               |                |                            | off-centre
+Substeps per frame         | E3134          | ceil(speed x dt x 16), 1   | More steps means safer but slower
+                           |                | to 6, per cube             |
+Frame time cap             | E3102          | 0.05 s                     | A long frame is cut to this
+
+4.8 Structures and rigid bodies (engine)
+----------------------------------------
+
+Name                       | Line           | Value                      | What it does
+---------------------------+----------------+----------------------------+--------------------------------------
+STRUCT_GRAVITY             | E3476          | 24.0                       | Gravity for structures and slabs
+STRUCT_SUBSTEPS            | E3477          | 3                          | Physics steps per frame per awake
+                           |                |                            | body
+STRUCT_SOLVER_ITERS        | E3478          | 8                          | Contact solver passes
+STRUCT_FRICTION,           | E3479, E3480   | 0.7, 0.0                   | Grip and bounce
+STRUCT_RESTITUTION         |                |                            |
+STRUCT_SLOP                | E3481          | 0.03                       | Overlap the solver ignores
+STRUCT_MAX_CONTACTS        | E3482          | 10                         | Contacts kept per body per step
+WOBBLE                     | E3485          | ang_damp 0.25, lin_damp 0, | Spin damping and how quickly bodies
+                           |                | sleep_k 1.0                | sleep
+STRUCT_SLEEP_LIN, _ANG,    | E3497 to E3499 | 0.15, 0.20, 0.6 s          | When a body counts as still enough to
+_TIME                      |                |                            | sleep
+STRUCT_SHATTER             | E3500          | 0.25                       | Blast strength that destroys a cell
+                           |                |                            | of hardness 1
+STRUCT_BLAST_IMPULSE       | E3501          | 140                        | Converts blast pressure to momentum
+STRUCT_CRACK_STEP          | E3502          | 0.05 s                     | Gap between rounds of cracking
+STRUCT_BUDGET_S            | E3503          | 0.0025                     | Most time per frame on support checks
+STRUCT_LOCAL_R             | E3504          | 2.0                        | A cut only re-checks cells this close
+STRUCT_UNBREAKABLE_CELLS   | E3514          | 40000                      | A fixed structure bigger than this
+                           |                |                            | never cracks under load
+STRUCT_DEBRIS_SPLIT        | E1901          | 1                          | 1: requests one full-size cube per
+                           |                |                            | cell before filtering/settings. 2:
+                           |                |                            | requests eight half-size cubes
+ARCH_JOINT_SHEAR,          | E3533, E3534   | 0.25, 0.5                  | Arch behaviour
+ARCH_CONTACT               |                |                            |
+DENT_RIM_FILL, _PEAK,      | E6813 to E6815 | 0.4, 1.2, 1.6              | Crater rim shape on structures
+_REACH                     |                |                            |
+Frame time cap             | E7791          | 0.05 s                     | Same safeguard for structures
+
+Material strengths are in STRUCT_MATERIALS (E3519; rho, compressive, tensile, shear, hardness; steel and white concrete also have friction mu). Values in the supplied source:
+
+Material         | rho        | comp       | tens       | shear      | hard
+-----------------+------------+------------+------------+------------+------------------------------------------
+Dirt             | 1.6        | 1200       | 25         | 60         | 0.5
+Stone            | 2.4        | 3000       | 300        | 450        | 1.0
+Brick            | 1.9        | 1500       | 120        | 200        | 0.7
+Planks           | 0.6        | 500        | 400        | 100        | 0.4
+Steel            | 7.8        | 20000      | 20000      | 12000      | 3.0
+Concrete (white) | 2.3        | 1600       | 60         | 350        | 1.0
+Wood             | 0.7        | 90000      | 80000      | 40000      | 0.5
+
+Axe: AXE_CUT_HALF_W 0.45, AXE_CUT_DEPTH 0.75, AXE_BLUNT_FRAC 0.5, AXE_BLUNT_CRACK 0.5, AXE_CUT_POWER 0.2, AXE_MIN_PIECE_CELLS 8, AXE_IMPULSE 0.05 (E3507 to E3513).
+
+4.9 Tools (game; keys 1 to 4)
+-----------------------------
+
+Beta slots are 1 Impact Hammer, 2 TNT, 3 Blower and 4 Checklist. This table retains older source constants, including the former Cannon and spray rate, for code reference.
+
+Name                       | Line       | Value                  | What it does
+---------------------------+------------+------------------------+----------------------------------------------
+TOOL_REACH                 | G1869      | 4.5                    | How far the hammer reaches
+HAMMER_R, HAMMER_SWING     | G1870      | 0.55, 0.42 s           | Crater radius; seconds per swing (the hit
+                           |            |                        | lands at 60% of it)
+HAMMER_STRUCT_R,           | G1871      | 0.8, 1.0               | Blast radius and power on structures
+HAMMER_STRUCT_P            |            |                        |
+CANNON_SPEED,              | G1872      | 50, 8, 0.04, 1.2 s     | Ball speed, drop, upward share of the shot,
+CANNON_GRAVITY,            |            |                        | reload time
+CANNON_LOFT, CANNON_CD     |            |                        |
+CANNON_BALL_CELLS,         | G1873      | 1.5, 4.0 s             | Ball edge in ground cubes; flight time before
+CANNON_MAX_T               |            |                        | a miss is lost
+CANNON_R, CANNON_STRUCT_R, | G1874      | 1.1, 1.7, 3.2, 3.0     | Crater radius, structure blast radius and
+CANNON_STRUCT_P,           |            |                        | power, ground weakened round it
+CANNON_CRACK               |            |                        |
+BREACH_MULT                | G1875      | 1.7                    | TNT thrown against a structure hits this much
+                           |            |                        | harder
+BLOW_RANGE, BLOW_ACCEL,    | G2029      | 14.0, 55.0, 16.0, 0.42 | Range is active and grows with
+BLOW_SPEED, BLOW_CONE      |            |                        | sqrt(multiplier); ACCEL/SPEED are unused;
+                           |            |                        | CONE affects visual stream only. Left click
+                           |            |                        | uses SPRAY_*
+SUCK_ACCEL, SUCK_EAT,      | G2033      | 40.0, 1.0, 14.0, 0.55  | Blower suck (right button): pull, distance at
+SUCK_SPEED, SUCK_CONE      |            |                        | which a cube is swallowed, top speed, cone
+                           |            |                        | width
+SPRAY_RATE, SPRAY_SPEED    | G2036      | 60.0, 32.0             | Blower spray of sucked-in cubes: cubes per
+                           |            |                        | second, muzzle speed
+THROW_SPEED_MIN,           | G1787      | 7, 24                  | TNT throw speed from a quick click to a full
+THROW_SPEED_MAX            |            |                        | charge
+THROW_CHARGE_S             | G1788      | 1.0 s                  | Hold time for full power
+THROW_LOFT                 | G1789      | 0.22                   | Upward share of the throw
+THROW_GRAVITY              | G1790      | 18.0                   | Gravity on a thrown charge
+
+How the earlier build applied multipliers: the hammer's and cannon's crater radius, structure radius and crack radius scale with the multiplier; structure power and kick scale with its square root (hammer, G2159; cannon, G2202).
+
+4.10 Player, sound and extras (engine)
+--------------------------------------
+
+Name                          | Line                 | Value
+------------------------------+----------------------+---------------------------------------------------------------
+MOVE_SPEED, SPRINT_MULT,      | E66 to E68           | 3.0, 2.5, 5.0
+FLY_SPEED                     |                      |
+GRAVITY, JUMP_VEL             | E108, E109           | -28.0, 9.0
+PLAYER_HEIGHT, PLAYER_RADIUS, | E112 to E114         | 1.8, 0.3, 0.6
+STEP_HEIGHT                   |                      |
+SFX_VOLUME, SFX_HEARD,        | E1933 to E1935       | 0.6, 70, 9
+SFX_FALLOFF                   |                      |
+SHADOW_RES, SHADOW_HALF       | E1180, E1181         | 2048, 48
+NUM_TREES, TREE_HEIGHT_MULT,  | E8027, E8051, E8052  | 18, 3.5, 2.2
+TREE_TRUNK_MULT               |                      |
+BED_X/Z, BED_INNER,           | E7879 to E7881       | (3, -4), (2, 0.8, 1), 1.0
+BED_WALL_H                    |                      |
+G monitor: MON_N,             | G984, G985,          | 240 time buckets (slowest frame per bucket), 30 s, 360 px
+MON_SECONDS, panel width      | PerfOverlay.P G1038  |
+
+-----------------------------------------------------------------------------------------------
+
+6. [EARLIER SOURCE REFERENCE] TROUBLESHOOTING
+=============================================
+
+Code symbols and line numbers below come from the earlier source review.
+
+Problem                            | Try
+-----------------------------------+-------------------------------------------------------------------------
+Lag after stacked blasts           | Lower TNT_MAX (G154); lower MAX_AWAKE_CUBES (E2544); HARD_AWAKE_CUBES is
+                                   | raised to at least 2600 by set_blast_scale (G1680), so lower
+                                   | C4_EXACT_MAX (G1619); cut the per-cube substep factor 16 (E3134). With
+                                   | SCOOP_STRICT on, initial blast sampling is bypassed, so also use a
+                                   | coarser cube detail (cubedetail-N) or set SCOOP_STRICT False (G1620)
+Slabs never form                   | Lower SLAB_MIN_CELLS (G2216); raise SLAB_SCAN_MARGIN (G2215); check the
+                                   | ledge is fully severed
+Slab frame cost too high           | Lower max_cells (E7550); lower MAX_LOOSE_BODIES (E7449)
+Slab falls too stiffly or too      | Slab push and spin (E7586, E7587); STRUCT_FRICTION (E3479)
+wildly                             |
+Debris flies too far or too high   | For ground TNT blasts, tune C4_WAVE_SPREAD, C4_WAVE_NEAR and
+                                   | C4_WAVE_ANG_*; for non-ground TNT ejection use C4_SPEED_MUL. C4_UP_MAX
+                                   | is unused
+Crater too big or small            | C4_CRATER (G1616), keeping the fixed beta TNT multiplier of 1.5× in mind
+Debris cubes look too small        | C4_DEBRIS_SIZE (G1622); 1.0 makes them full ground-cube size (this fixes
+                                   | the size departure from the scoop rule)
+Small broken pieces fall as one    | Raise CRUMBLE_BODY_VOLUME (G66)
+block                              |
+Bloom too strong or weak           | bloom (G244); threshold 0.82 (E8993)
+Shake too strong                   | shake (G244) or SHAKE (G2417)
+Fireball too short or low          | FIREBALL_LIFE, FIRE_RISE (G2412, G2414)
+Structures collapse too easily     | STRENGTH['k'] (E3532), the tensile and shear values in STRUCT_MATERIALS
+Bodies jitter or never sleep       | STRUCT_SLEEP_* (E3497 to E3499), WOBBLE ang_damp (E3485); for debris
+                                   | cubes JAM_MOVE, PROGRESS_R, PROGRESS_TIME (E2550 to E2552)
+Blower too weak or strong          | BLOW_RANGE and SUCK_* in the current source. The wheel changes suction power.
+Scan does not show in the SCANS    | Put the .cells file in a folder from SCAN_DIRS (G2820), or start the
+tab                                | server with --export pointing at one
+Too coarse or too heavy at a given | Change the cubedetail-N launch command in the launcher cog (default 2);
+cube size                          | the menu no longer has a slider
+
+-----------------------------------------------------------------------------------------------
+
+7. [DESIGN INTENT / FICTION] RULES AND LORE
+===========================================
+
+[DESIGN INTENT — NOT AN IMPLEMENTATION GUARANTEE] Cube and scoop rules
+----------------------------------------------------------------------
+
+1. Everything in the world is built from the same small cubes as the terrain (one cell = 1/cube-detail block). Structures use the engine's own cell grid at struct_res, which follows cube detail, and their cell edges line up with the ground cubes' edges. No separate coarser cell size for test shapes or new objects.
+2. Scoop rule: what a blast removes is what comes out as debris. A destroyed structure cell becomes exactly one cube of its own size; a ground cube dug out becomes one debris cube. No splitting a cell into several, no inventing extra pieces.
+3. New things are made the same way from here on: terrain cubes and structure cubes, differing only in material.
+
+Lore
+----
+
+The Shatterlands
+
+The Unbroken Age. Before the Shatterlands there was only the Floor: one seamless plain of dirt and stone, resting on Bedrock that nothing could break. The material was all there, but nobody could separate it into pieces small enough to use.
+
+The First Blast. A surveyor set a charge beneath the plain. The blast is remembered, but her name was lost long ago. The ground came apart into thousands of tiny cubes, and they were thrown into the air and fell again. Those who watched swore that what the blast took was what fell, and the Breakers still hold to this as the Scoop Law. It is their ideal rather than a promise. Dust drifts away, and the sharpest-eyed Breakers say a little is always missing.
+
+The Hanging Ground. A severed ledge can fall as one great slab, turning as it drops. Survivors learned to read the land for these shelves of earth, held up by little more than a narrow neck of stone.
+
+The Bedrock Line. The blasts could never touch the bottom layer, and no tool has ever scratched it. The survivors treat it as the one promise the land keeps: you can ruin everything above it, but never fall through.
+
+The Breakers. A Breaker carries three tools and a field checklist.
+
+The Impact Hammer takes a measured bite with every swing. It’s for shaping a crater, trimming a ledge, or finding where a structure is weakest.
+Breaching Charges are thrown in an arc and set off by hand. Every charge packs the same punch, and Breakers trust them to bring down large structures.
+The Blower draws in loose rubble and keeps the stone. At high power it reaches farther and pulls harder.
+
+A blast is felt as a shake in the world itself. Fire, smoke and dust rise and fade, but the cracks stay. Experienced Breakers read those cracks first. An unmarked ledge may already be hanging by a thread. Deep cracks mean time is running out.
+
+The oldest rule of the Breakers is to look at what’s holding a thing up before you strike it. Anyone can make a hole, but a Breaker makes the ground drop where they want it to.
+
+The Stone Ledger. After a blast, Breakers tally loose stone in stacks of five hundred. They track their own tasks in the field checklist and can put stone into storage. The quartermaster pays one hundred credits for a delivery of five hundred stored stone.
+
+The Echoes. Breakers can photograph a real object from the world outside, such as a shed, a chair or a boot, and carry it to a scanning post. The post builds it from cubes in the material the Breaker names, wood, stone, concrete or earth, and stands it in the Shatterlands. This is called an Echo. It’s never the object itself, only what the post remembers of it, and it can be cracked, cut and blasted like anything else.
+
+Echoes are never lost for good, because the post keeps every scan. Many Breakers return to the same one again and again, to see how it falls from a different angle.
+
+The Breakers say the Shatterlands aren’t a ruin. They’re a place where every wreck can be rebuilt and wrecked again.
+
+-----------------------------------------------------------------------------------------------
+
+8. [UNVERIFIED] EXTERNAL SCANNER CLAIMS
+=======================================
+
+scanner_server.py and scanner.html were not supplied. The claims below are retained from prior notes, not verified against this engine attachment. Previously recorded file lengths were 715 and 381 lines respectively; those lengths are also unverified. The fictional Echoes above are a design narrative, not proof of scanner capability.
+
+1. scanner.html (phone) talks to scanner_server.py (laptop). Routes: /api/upload, /api/demo, /api/guided/start, /api/job/<id>, .../slot/<angle>, .../build, .../frame/<n>, .../model/<v>, .../edit, .../import, /api/jobs, /api/about, /qr.svg, /connect.
+
+2. In the server, shape_from_frames (still the placeholder: one frame, inflated) and build_model make the cell columns. Import writes <name>_<id>_v<n>.cells to the export folder (EXPORT_DIR, --export). Server constants DETAIL, BLOCKS, NFRAMES, FRAME_MAX, SLOT_MAX, BG_TOL are 5, 10, 12, 384, 640, 55. DETAIL is the scanner's own cubes-per-block; the game resamples, so it does not have to match the game's cube detail.

@@ -1,0 +1,136 @@
+Below is the complete audit of the Launcher (engineui.py), the World/Voxel/Raymarcher/Debris/Audio Engine (_ENGINE_SRC up to line 1700), and how the engine's foundation aligns with LORE.txt. (If you want the second half of the file audited as well, run python Shatterlands-beta.py --export-game game.py and upload game.py—it won't have the base64 textures eating the character limit!)
+
+1. Lore vs. Engine Verification
+
+Where the engine matches the lore—and where it falls short
+
+The architectural alignment between your physics/voxel engine and LORE.txt is remarkably tight—especially how dig_n, weak_islands, and DirtCubes turn lore rules into literal math:
+
+The Bedrock Line (LORE.txt vs World.dig / World.cell)
+
+Where it matches:  World.cell returns 1 (solid) for all iy < 0, and World.dig / World.dig_n clamp their lower vertical bound to max(0, ...). The player can never fall through iy < 0.
+
+Where it falls short:  The lore states "The blasts could never touch the bottom layer (y=0), and no tool has ever scratched it." However, World.dig and World.dig_n clamp lo[1] to max(0, ...), which allows blasts and the hammer to carve out layer iy = 0, exposing the invisible infinite floor at iy = -1. Furthermore, in RayTerrain.march, if the player's eye clips into solid ground and looks down into v.y < 0, the shader executes if (v.y < 0) return false; (discard), rendering the exposed bottom as sky/void instead of an unbreakable bedrock surface.
+
+Suggested fix:  Clamp lo[1] in dig() and dig_n() to max(1, ...) so layer iy = 0 is truly indestructible and always remains visible.
+
+The Scoop Law ("What the blast took was what fell... a little is always missing")
+
+Where it matches:  World.dig records every removed cube into self.dug_cells and spawns DirtCubes (BODIES.spawn). The lore's "sharpest-eyed miners say a little is always missing" is mechanically backed by three things in DirtCubes:
+
+Free slot filtering in spawn() drops cubes whose initial slot overlaps remaining terrain or structures (unless keep_all=True).
+
+BODY_MAX = 12000 silently culls the oldest cubes when a massive blast exceeds the cap.
+
+Cubes that roll into rivers (WATER_Y = 6.0) dissolve via WASH_DELAY and WASH_FADE.
+
+Where it falls short:  In World.settle(center, radius, limit=3000), if a severed overhang exceeds limit=3000 cells, settle() aborts and returns np.zeros((0, 3)) (if count == 0 or count > limit: return np.zeros((0, 3))), leaving massive severed islands floating in mid-air if settle() is used instead of settle_islands().
+
+The Hanging Ground ("Shelves of earth held up by little more than a narrow neck... turn over as it falls")
+
+Where it matches:  World.weak_islands and World.settle_islands are standout implementations. Using 3D morphological erosion (ndimage.binary_erosion) with NECK_THIN = 0.4 to sever thin necks, dilating back, and computing cantilever torque (weight * arm / area**1.5 / NECK_LIMIT) against blast damage (gdmg) directly translates "reading the cracks" and "bringing a ledge down with one charge" into physics.
+
+Where it falls short:  weak_islands only checks the top 4 largest candidate islands (for i in cand[:4]:). If a blast creates 4 medium intact islands that pass their load test and a 5th smaller island whose neck is completely sheared, the 5th island is ignored on that pass. Additionally, arm only measures horizontal lever arm (np.hypot(com[0] - ncen[0], com[2] - ncen[2])), ignoring vertical overhang eccentricity.
+
+The First Camp & Survey Post
+
+Where it falls short:  As noted at the bottom of LORE.txt ("The post and camp are not implemented features of the current beta"), terrain_height(gx, gz) flattens a 26-to-56 block radius around (0, 0) to y = 11.0, which matches "The Floor: one seamless plain" at spawn, but the Survey Post and Mountain Camp structures aren't stamped into the world generation yet.
+
+2. Bug Check and Findings
+
+NameError Crash in DirtCubes._struct_corners and _struct_push (STRUCTS and PROF undefined in Engine scope)
+
+Finding:  Inside _ENGINE_SRC, _box_hits_solid, _struct_corners, and _struct_push call STRUCTS.hits_box(...) and STRUCTS.objects(), and DirtCubes.update calls PROF.add(...) and references _S_TEXLAYER and tile_texture(). Unless those symbols are defined in the truncated bottom third of _ENGINE_SRC, any call before they are bound will raise a NameError. (Verify they are initialized at module level in _ENGINE_SRC before run() is called.)
+
+Wash-Away (self.wet) Timer is Never Incremented in DirtCubes.update()
+
+Finding:  DirtCubes defines WASH_DELAY = 2.0, WASH_FADE = 1.5, self.wet, and self._wet_acc = 0.0. At the end of DirtCubes.update(), it checks fading = self.wet > WASH_DELAY and shrinks/removes wet cubes. However, self.wet is never incremented anywhere in DirtCubes.update()! Cubes sitting underwater (pos[:, 1] <= WATER_Y) never accumulate wet time and never wash away.
+
+Suggested fix:  In DirtCubes.update(), add:
+
+under_water = self.pos[:, 1] <= WATER_Y
+self.wet = np.where(under_water, self.wet + dt, np.maximum(0.0, self.wet - dt * 0.5))
+
+1D Chunk-Key Hash Collision / Signed Modulo Hazard in clear_cells and _sample_many
+
+Finding:  ckey = (cx + 100000) * 200000 + (cz + 100000) unpacks via kx, kz = kk // 200000 - 100000, kk % 200000 - 100000. This works as long as cx, cz > -100000, but in DirtCubes._separate(), spatial hashing uses ci = np.floor(pos / cell).astype(np.int64) + OFF (OFF = 1 << 19, M = 1 << 20) and _NEIGH_OFFS. If a physics glitch launches a cube beyond ±(2^19 * cell) blocks, the 64-bit key wraps across axes or overflows int64.
+
+Time-Sliced Airborne Cubes (HARD_AWAKE_CUBES) Lose Gravity Accuracy When dt * k > 0.05
+
+Finding:  In DirtCubes.update(), when len(aw) > HARD_AWAKE_CUBES (700), cubes are stepped in k round-robin groups with dt = min(dt * k, 0.05). At 60 FPS (dt = 0.0166s), if k = 5 (3,500 airborne cubes), dt * k = 0.0833s, which gets clamped to 0.05s. Because each group only steps every 5th frame, clamping dt to 0.05s makes the debris cloud fall in slow motion (60% normal speed).
+
+DiskCache._mesh_sig Inspects Source Inside Frozen/Exec'd Module
+
+Finding:  DiskCache._mesh_sig() calls inspect.getsource(_mesh_cubes). Because shatterlands_engine is loaded dynamically via exec(compile(src, "<shatterlands_engine>", "exec")) and linecache.cache is populated manually in install_engine(), inspect.getsource() works in the main process—but in ProcessPoolExecutor worker processes, if install_engine() isn't called before _mesh_sig(), inspect.getsource falls back to 'x'. Fortunately mesh_key is computed on the main thread, so it survives, but any refactor moving mesh_key to workers will silently disable mesh cache invalidation.
+
+Subprocess Pipe Deadlock Risk on Rapid stdout Flooding (launch())
+
+Finding:  In engineui.py, launch() spawns the game with stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1 and reads it on pump_thread. That's good practice, except poll() does pump.join(1.0) after p.poll() returns non-None. That is safe, but if the child process spawns grandchild processes (ProcessPoolExecutor mesh workers) on Windows that inherit the stdout pipe handle, for line in p.stdout: in pump() can block even after the main game process crashes until the worker processes also terminate.
+
+Renderer._grow() Leaks Old VBO Binding if Called Mid-State
+
+Finding:  In Renderer._grow(), gl.glDeleteBuffers(1, [old_vbo]) is called before rebinding the new VBO to self.vao. OpenGL core profile allows this, but _upload() immediately follows start = self._alloc(count) (which may call _grow()) with gl.glBindBuffer(gl.GL_ARRAY_BUFFER, self.vbo). That works cleanly, though glDeleteBuffers(1, [old_vbo]) in PyOpenGL is safer as gl.glDeleteBuffers(1, np.array([old_vbo], dtype=np.uint32)) to avoid ctypes array-wrapping quirks across PyOpenGL versions.
+
+World.weak_islands Slice Offset Bug (off vs sl vs sl0)
+
+Finding:  Look closely at lines 649–658 of _ENGINE_SRC:
+
+sl0 = objs[i - 1]
+sl = tuple(slice(max(s0.start - K - 1, 0), min(s0.stop + K + 1, lab.shape[k])) for k, s0 in enumerate(sl0))
+...
+off = np.array([s0.start for s0 in sl]) + lo
+
+Here s0 is the loop variable name inside the generator expression, and then [s0.start for s0 in sl] reuses s0 to iterate over sl (which works and gets sl's start). However, two lines below:
+
+ax = int(np.argmax(np.abs(ncen - com)))
+
+If a ledge's center of mass (com) is directly below/above its neck (ax == 1, vertical axis), arm = max(0.5, float(np.hypot(com[0] - ncen[0], com[2] - ncen[2]))) uses horizontal distance while layer slices horizontally (ax = 1), mixing a vertical neck axis with a horizontal lever arm.
+
+SoundFX.play Stereo Panning Math Inversion
+
+Finding:  In SoundFX.play():
+
+pan = 0.0 if flat < 0.5 else (d[0] * math.cos(self.yaw) + d[2] * math.sin(self.yaw)) / flat
+
+In _view() and PlayerController.forward(), forward is (sin(yaw), 0, -cos(yaw)) and right is (cos(yaw), 0, sin(yaw)). Taking the dot product of d with right (d[0]*cos(yaw) + d[2]*sin(yaw)) is actually correct for the right ear! However, left, right = math.cos(ang) * 1.414, math.sin(ang) * 1.414 multiplies by $\sqrt{2}$ (1.414) and then clamps to 1.0, which flattens the stereo image for any sound more than 30° off-center when vol >= 0.7. Removing * 1.414 (standard constant-power pan uses $\cos(\theta), \sin(\theta)$ directly since $\cos(\pi/4) \approx 0.707$) preserves directional dynamics.
+
+Raymarcher planeHitAt Division-by-Zero / Grazing-Angle Texture Derivative Spike
+
+Finding:  In _RAY_FRAG_BODY, planeHitAt computes where adjacent screen pixels hit the voxel face plane:
+
+float den = dot(n, d);
+float s = abs(den) < 1e-6 ? 0.0 : dot(n, P - pa) / den;
+
+When viewing a voxel face at a grazing angle (abs(den) small, e.g. 1e-4), dPx and dPy explode to huge world-space vectors. Passing huge gx, gy into textureGrad(uTiles, ...) forces the GPU to sample the lowest mipmap level (or causes anisotropic driver stalls), creating blurry bands along grazing cliff edges. Clamping gx and gy length (gx = clamp(gx, -1.0, 1.0);) prevents derivative blowup.
+
+3. Dead, Unused, or Redundant Code Safe to Remove
+
+Here is the line-by-line cleanup list from the Launcher and Engine:
+
+Launcher (engineui.py, lines 1–398)
+
+CARD, CARD_HOT (Line 200): Defined in gui() colour palette (CARD, CARD_HOT, CHIP, BTN_BG, BTN_HOT = ...), never used anywhere in gui().
+
+is_builtin(path) checks in start_game and game_label (Lines 68–74, 381–388): The launcher UI only ever launches BUILTIN_GAME (btn.config(command=lambda: start_game(BUILTIN_GAME))). Unless you plan to re-add a "Browse external .py game" button, the external file branches in start_game and game_label are currently unreachable from the GUI.
+
+Engine (_ENGINE_SRC, lines 400–1700)
+
+Unused Block IDs (Lines 468–485): Over 45 block constants (MARBLE, GRANITE, SLATE, LIMESTONE, BASALT, OBSIDIAN, QUARTZ, SANDSTONE, MOSSY_STONE, DIAMOND_BLOCK, GOLD_BLOCK, CLAY, CONCRETE_BLACK, CONCRETE_RED, CONCRETE_BLUE, WOOD_OAK..WOOD_ACACIA, FLOWER_RED..CRYSTAL_EMERALD, COPPER_ORE..GLASS_COLORED, DIAMOND, GOLD, COPPER, IRON, COAL, EMERALD) are legacy leftovers from VoidCraft/Minecraft. Shatterlands only uses AIR, GRASS, DIRT, STONE, SAND, WOOD, LEAVES, WATER, SNOW, GRAVEL, PLANKS, GLASS, TORCH, BRICK, SLAB, CONCRETE_WHITE, STEEL, and APPLE.
+
+Unused Terrain Constants (Lines 505, 513): FLAT_SURFACE_Y = 10 and FLAT_GROUND_H = FLAT_SURFACE_Y + 1.0 are never referenced anywhere in _ENGINE_SRC (terrain_height hardcodes 11.0 and 13.0).
+
+Placeholder world.chunks uint8 Array (Lines 690, 699, 756–890): _generate_chunk_raw returns (np.zeros((1, 1, 1), np.uint8), ChunkData(top)). That dummy 1x1x1 uint8 array is stored in world.chunks[key] and world.saved[key], while all actual data lives in world.dens[key]. You can store True or unify world.chunks and world.dens into a single dictionary, saving double dictionary lookups and saved duplication.
+
+world._building Set (Lines 758, 868, 891): self._building = set() is initialized in World.init, cleared in reset_all(), and checked in neighbours_ready() (if (cx + dx, cz + dz) in self._building: return False), but nothing ever adds a chunk key to self._building.
+
+Redundant import re in DiskCache.clear() (Line 673): re can be imported once at the top of _ENGINE_SRC instead of inside DiskCache.clear().
+
+Unused strength Parameter in World.dig(self, center, radius, strength=0.0) (Line 568): Even the docstring notes: "strength is unused: cubes are either there or not."
+
+Dead Overlay Shaders _OVL_VERT & _OVL_FRAG and _GRID_VERT & _GRID_FRAG (Lines 1094–1113, 1528–1544): Check if these are used in the truncated UI section; if the UI uses its own shader or pygame surface blitting, any unreferenced shader strings in _ENGINE_SRC can be trimmed.
+
+Redundant if True: Block in PlayerController.update (Line 1463): Lines 1463–1467 wrap the jump and gravity calculation in if True:—a leftover from an old debug toggle that can be unindented.
+
+Unused PlayerController.EPS = 1e-4 (Line 1437) and DirtCubes._wet_acc = 0.0 (Line 1685): Neither attribute is ever read.
+
+Unused yaw, pitch Parameters in DirtBodyRenderer.render(self, vp, ambient, yaw, pitch, bodies=None) (Line 2067): Leftover from when debris were camera-facing billboarded discs (_DISC_VERT) instead of 3D instanced cubes (_cube_mesh()). [cite: 2, 4]
