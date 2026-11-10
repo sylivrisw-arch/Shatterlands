@@ -1,118 +1,249 @@
-# Shatterlands Beta
+SHATTERLANDS BETA
+MASTER README
+=================
 
-[VERIFIED BY SOURCE REVIEW, 2026-11-09] Reviewed against `Shatterlands-beta(1).py` (14,033 lines). The launcher and both embedded modules passed syntax compilation. Gameplay and Windows launch were not tested.
+Shatterlands is a first-person voxel destruction sandbox built on
+ShatterEngine, a custom Python and OpenGL engine. Dig with an Impact Hammer,
+throw breaching charges, clear loose rubble with the Blower, and bring scanned
+objects into the world as breakable structures.
 
-Shatterlands is a single-file Python and OpenGL voxel destruction sandbox. Use the hammer or TNT to dig and break structures, collect loose stone with the Blower, and trade it for credits through the Checklist. Severed terrain can fall as a rigid slab. Imported `.cells` objects can be placed and destroyed in the world.
+Build reference   shatterlandsgood(1).py
+Source reviewed   10 November 2026
+Review scope      Launcher, embedded engine and game source. Syntax checked.
+                  Gameplay, Windows launch and GPU performance need playtests.
 
-## [VERIFIED] Run the game
+Contents
+  Part I    Run and play
+  Part II   World lore
+  Part III  Player profile and proposed opening
+  Appendix  External scanner notes
 
-1. Install Python 3 with Tkinter for the launcher, then run `python -m pip install pygame numpy PyOpenGL`. Optional packages include SciPy, psutil and a CUDA-compatible CuPy build.
-2. Run `python "Shatterlands-beta(1).py"` using the filename on disk and press **Launch game** in the **Shatterlands - beta** window.
-3. Use the cog beside **Launch game** to enter launch commands. The launcher keeps those commands in `engineui_config.json`.
+PART I — RUN AND PLAY
+=====================
 
-The launcher starts at 380 × 500, with a shorter height on small screens. The game defaults to fullscreen using a 1920 × 1080 game and menu canvas. The default 120% scene scale renders at 2304 × 1296. Terrain and mesh caches default to the `cache` folder beside the script. `SHATTERLANDS_CACHE_DIR` can override that location.
+Quick start
+-----------
+1. Install Python 3 with Tkinter for the launcher. In a terminal, run:
 
-| Launch command | Effect |
-|---|---|
-| `cubedetail-N`, `cubedetail-max` | Whole cubes per block edge from 1 to 50. Default 2. Max selects 50. |
-| `fps-N` | Frame cap from 0 to 1000. Default 60. Zero is uncapped. |
-| `scale-N` | Scene resolution from 25% to 150%. |
-| `debris-N`, `debris-off` | Debris amount from 0% to 100%. Zero and off disable ordinary debris. |
-| `cpuphysics` | Select CPU debris physics. |
-| `nocache` | Disable terrain and mesh caches for the run. |
-| `raymarch` | Enable the GPU ray-marched terrain path. |
+       python -m pip install pygame numpy PyOpenGL scipy
 
-## [VERIFIED] Controls
+   SciPy supports terrain collapse checks. A compatible CuPy installation
+   is optional for GPU debris compute. The game can use CPU debris physics.
 
-| Input | Action |
-|---|---|
-| W A S D, mouse, Space, Left Shift | Move, look, jump, sprint. |
-| V | Toggle flight. Space rises and Left Ctrl descends. |
-| 1 · Impact Hammer | Left-click to swing. Fixed at 1×. |
-| 2 · TNT | Hold left-click to aim and charge, release to throw, then left-click again after it lands to detonate. One charge at a time, fixed at 1.5×. |
-| 3 · Blower | Hold left-click to vacuum loose cubes. Scroll down for 1× or up for 2× suction. Stone goes into carried inventory. Other swallowed debris is cleared. |
-| 4 · Checklist or Q | Equip the Checklist and left-click to open it, or press Q directly. Q or Esc closes the panel. |
-| Tab | Open Display, Scans and Controls. |
-| F, X, G | Pause simulation while keeping movement, toggle grid lines, toggle the damage and performance overlay. |
-| R | Open the reset menu for damage or return to spawn. Resetting damage clears carried stone. |
-| Esc | Close an open menu or quit from gameplay. |
+2. Run the script from its folder and click Launch game:
 
-The Blower is suction-only. The old hut, physical storage crates, B-key storage and cube-selection outline are absent from the active gameplay path. Progress actions are in the Checklist.
+       python "shatterlandsgood(1).py"
 
-## [VERIFIED] Checklist and stone economy
+3. Press Tab for Display, Cubes, Scans, Controls and Recording. To change
+   terrain detail, select the new value under Cubes, then choose
+   Restart with new settings. Restarting resets the world session.
 
-| Tab | What you can do |
-|---|---|
-| Checklist | View carried stone in stacks of 500 and edit or tick six personal tasks. |
-| Storage | Deposit all carried stone or withdraw up to 500 at a time. |
-| Upgrades | Spend credits to increase the upgrade level. Costs start at 100 and increase by 100 per level. The purchase updates the level counter. |
-| Tools | Review tool controls. |
-| Jobs | Deliver 500 stored stone for 100 credits and one completed job. |
+The launcher and game are bundled in the script. The game starts windowed
+with a fixed 1920 × 1080 canvas and a default scene scale of 120%. Coded
+defaults include 60 FPS, 5 terrain cubes per block edge, camera height of
+126 cm, 95° vertical FOV and TNT size of 0.70×.
 
-Carried and stored stone, credits, completed jobs, upgrade levels and personal tasks are session-only. A fresh launch starts from zero with an empty personal checklist. The game does not load or write an HQ progress save.
+Supported menu settings are saved to engineui_config.json beside the script.
+Fullscreen applies for the session. Generated terrain and mesh data are
+cached in cache/ by default. SHATTERLANDS_CACHE_DIR overrides the cache path.
 
-## [VERIFIED] Terrain and debris
+Controls
+--------
+Input                         Action
+----------------------------  -----------------------------------------------
+W / A / S / D                 Move
+Mouse                         Look and aim
+Space / Left Shift            Jump / sprint
+V                             Toggle flight
+Space / Left Ctrl             Rise / descend while flying
+1                             Equip the Impact Hammer
+2                             Equip the Breaching Charge (TNT)
+3                             Equip the Blower
+F                             Pause simulation while keeping movement
+X                             Toggle grid lines
+G                             Toggle the purple tint on loose debris
+T                             Start recording or stop the current clip
+R                             Open the damage and position reset menu
+Tab                           Open or close Settings
+[ / ]                         Switch Settings tabs
+Up / Down                     Select rows or scroll Controls
+Left / Right / Enter          Adjust or activate the selected setting
+Esc                           Close a menu or quit from gameplay
 
-The map is 15 × 15 chunks (225 blocks across). Ordinary TNT terrain debris has half the source cell's edge length. Debris settings and collision filters can reduce the number spawned. The optional loose debris cap starts off. Enable it under **Tab → Display → Debris** for a 12,000-cube cap at full debris amount.
+Tools
+-----
+Impact Hammer   Left-click to chip terrain or hit a structure.
+TNT             Hold left-click to aim and charge. Release to throw.
+                After it lands, left-click again to detonate. One charge
+                can be active at a time. Cubes has separate controls for
+                explosion size, fireball size and shockwave push.
+Blower          Hold left-click to vacuum loose debris and clear it.
+                Scroll down for 1× suction or up for 2×.
 
-## [VERIFIED] Import a scan
+The field checklist, stone inventory, deliveries and upgrades belong to
+earlier builds and to the fiction below. The current build focuses on
+breaking terrain and structures, clearing debris and importing scans.
 
-1. Put the `.cells` file beside the game script, in its `scans` folder, in the current working directory, or in `~/Downloads/scan_exports`.
-2. Open **Tab → Scans**. Click a scan or select it with the arrow keys and press Enter. The list refreshes about once a second while that tab is open.
-3. The game resamples the scan to the current cube detail and places it roughly four blocks ahead as a fixed structure. **Reset all damage** clears placed scans.
+Terrain and rendering
+---------------------
+The map is 15 × 15 chunks, or 225 blocks across, with an unbreakable
+bottom layer. Severed terrain crumbles into loose cubes. Damage can also
+weaken ground and trigger a delayed collapse. Detached pieces of
+structures can fall as rigid bodies.
 
-The importer reads JSON with `materials` and `cells`. Each cell entry is `[x, y, half_thickness, material_index]`. `cubes_per_block` defaults to 5 if omitted. The loader does not check the format tag, so older `voidcraft.cells.v1` exports can still work if their fields match.
+Terrain raymarching is enabled by default. The launcher reports whether
+it is active or using chunk meshes. The main terrain voxel grid has a
+10 GiB budget, with GPU texture dimensions and available memory imposing
+additional limits. At default detail 5, the main grid is about 0.303 GiB.
+At detail 16, it alone is about 9.463 GiB. See Shatterlands_Master_Prefs.txt
+for the full table, advanced launch commands and playtest checks.
 
-## [VERIFIED] Edit the embedded source
+Reset and record
+----------------
+Press R to choose Reset All Damage or Reset Position to Spawn. Reset All
+Damage restores terrain and clears loose debris, charges and placed scans.
+Reset Position to Spawn moves the player back to the starting position.
 
-Use `--export-engine engine.py` or `--export-game game.py` after the script filename to export the relevant module. Use `--replace-engine engine.py` or `--replace-game game.py` to put edited code back. Replacement keeps a `.bak` of the script. See the prefs for current source locations and historical tuning notes.
+Press T to record a clip up to 15 seconds at 30 FPS, or press T again to
+stop early. The game saves a video-only Motion JPEG AVI beside the script.
+Choose 480p, 720p or 1080p under Tab → Recording. G applies a purple tint
+to loose debris, including in the recording.
 
-## [UNVERIFIED] External scanner files and workflow
+Import a scan
+-------------
+1. Put a .cells file beside the script, in its scans/ folder, in the
+   current working directory or in ~/Downloads/scan_exports.
+2. Open Tab → Scans and click an entry, or select it and press Enter.
+3. The game resamples the scan to the current terrain detail and places
+   it as a breakable structure roughly four blocks ahead.
 
-`scanner_server.py` and `scanner.html` were not supplied. All claims below about their UI, dependencies, routes, processing, testing history and export behavior are carried forward from earlier notes, not verified in this review.
+The importer reads JSON with materials and cells. A cell row is
+[x, y, half_thickness, material_index]. Source cubes_per_block defaults
+to 5. The format tag is unchecked, so older exports can work if their
+fields match. Material names wood, dirt, stone, leaf and concrete map to
+wood, dirt, dirt, planks and white concrete in this build.
 
-| File | Status |
-|---|---|
-| `scanner_server.py` | [UNVERIFIED] External scanner server; not supplied for this audit. |
-| `scanner.html` | [UNVERIFIED] External phone interface; not supplied for this audit. |
+Edit the embedded source
+------------------------
+Run these from the script folder to export the modules:
 
-### [UNVERIFIED] The phone scanner
+    python "shatterlandsgood(1).py" --export-engine engine.py
+    python "shatterlandsgood(1).py" --export-game game.py
 
-The phone is only a camera and a viewer. The laptop does the work.
+Use --replace-engine engine.py or --replace-game game.py to put edited
+modules back. Replacement keeps a .bak of the script. For settings,
+source locations and renderer details, see Shatterlands_Master_Prefs.txt.
 
-### Setup
+PART II — WORLD LORE
+====================
+The history and customs in this section describe the world of Shatterlands.
 
-1. On the laptop, install the packages: `pip install flask opencv-python numpy`. For the pairing QR code, also `pip install segno` (optional).
-2. Run `python scanner_server.py`. It listens on port 5055 and prints the address for your phone.
-3. Put the phone on the same Wi-Fi network and open that address, or scan the QR code the server opens in the laptop browser. The QR code is also in the About tab.
+The Unbroken Age
+----------------
+Before the Shatterlands there was only the Floor, a seamless plain of dirt
+and stone resting on Bedrock. The material was all there, but nobody could
+separate it into pieces small enough to use.
 
-Options: `--port N`, `--export FOLDER`, `--no-browser`, `--terminal-qr`.
+The First Blast
+---------------
+A surveyor set a charge beneath the plain. People remember the blast
+although her name was lost long ago. The ground broke into thousands of
+tiny cubes. Those who watched swore that what the blast took was what fell.
+Miners call this the Scoop Law. Dust drifts away, and the sharpest-eyed
+miners say a little is always missing.
 
-### Scanning
+The Hanging Ground and the Bedrock Line
+---------------------------------------
+Miners look for shelves of earth held up by a narrow neck of stone. Cut
+through that neck and the shelf can turn over as it falls. Others crumble
+and spill down the face in a shower of cubes.
 
-- **Video:** upload a short video of the object, ideally a slow turn around it.
-- **Guided capture:** take photos of Front, Right, Back and Left, plus an optional Top. The scanner checks each one for blur, darkness and overlap with its neighbours, and tells you to redo a bad shot. If the sides are hard to capture, add a **Whole object** photo instead (it can be used alone or together with the sides).
-- **Note:** say what the object is (rock, wood, ceramic, or leave it as auto). This sets the materials directly instead of guessing from colour.
+Fire, smoke and dust rise and fade after a blast. Experienced miners
+study the cracks that remain. Deep cracks tell them they have little
+time to move. Their oldest rule is to look at what's holding a thing up
+before they strike it.
 
-Then open the Model tab. You can spin the model with a full 360 degree swipe, ask for edits ("thicker", "taller", "trim top", "remove loose bits"), compare versions, and press **Import** to write the `.cells` file. Every scan is saved in History, with all its versions.
+Below it all is Bedrock. No charge has ever marked it. A miner can dig
+away the land above and still find solid ground at the bottom.
 
-### What happens to the photos
+Tools of the trade
+------------------
+The Impact Hammer takes a measured bite with every swing. Miners use it
+to shape a crater, trim a ledge or find a structure's weakest point.
+They throw breaching charges in an arc and set them off by hand once
+they land. The Blower draws loose rubble into its nozzle. At high power
+it reaches farther and pulls harder.
 
-Frames are cut out from their background (OpenCV GrabCut), turned into a 3D shape, converted to cubes, and given materials. Exports go to a `scan_exports` folder next to `scanner_server.py` by default, or to the folder you give with `--export`.
+Stone deliveries
+----------------
+The field checklist records the stone a miner recovers and stores.
+The old delivery terms are five hundred stone for one hundred credits.
+Ask an old miner how to bring down a ledge and they'll tell you where
+to put the charge. Ask where the delivered stone goes and they'll
+tell you how much you're short.
 
-### [UNVERIFIED] Scanner limitations
+The Echoes
+----------
+Miners bring images of objects from outside the Shatterlands to a scanning
+post. It rebuilds a shed, a chair or even a boot from cubes in the material
+the miner names. The resulting copy is called an Echo. It can be cracked,
+cut and blasted. The post keeps a copy of the scan so a miner can bring
+the Echo back and see how it falls from another angle.
 
-- **The 3D shape is a placeholder.** The scanner picks one photo (or the whole-object photo), cuts it out and inflates it into a symmetric slab. Real multi-view reconstruction is not built yet.
-- Hollow objects come out solid. A cup is a solid disc.
-- Thin parts (leaves, twigs) disappear.
-- White objects on white backgrounds cut out badly.
-- Edit commands use a simple keyword matcher.
-- Colours are not kept per cube. Only the material is.
-- Thresholds were tuned on synthetic images. Real guided photos and Windows are lightly tested.
+PART III — PLAYER PROFILE AND PROPOSED OPENING
+=============================================
 
-## [PROPOSED / UNVERIFIED IMPLEMENTATION STATUS] Scanner ideas
+The miner
+---------
+The player character is a man who makes his living breaking ground and
+recovering stone. His name, age and life before mining are open. He can
+spend most of a shift vacuuming rubble and still take pride in the few
+seconds it took to bring a ledge down exactly where he wanted it. He judges
+a blast by where the rubble lands. If it's within reach, he's saved himself
+a long afternoon.
 
-- Per-cube colour, for objects that look like the real thing.
-- Real multi-view reconstruction from the guided photos or a video.
-- A "what is this" step using a local vision model (LM Studio).
-- Photo to scene: turn a beach photo into terrain, sea, sky and trees using the engine's own generators.
+The first camp
+--------------
+While looking for a place to work, the miner comes across an old survey
+post marking the First Blast. He stops to read it.
+
+    FIRST BLAST SURVEY
+    Bedrock untouched.
+    Loose stone recovered.
+    Second count: short.
+
+He sets a charge against the side of a nearby mountain. When the dust
+clears, he checks the cracks above the hollow, brings his gear inside
+and lays out his bedroll. The stone from the blast is still lying outside.
+In the morning, it will go toward his first delivery.
+
+The surveyor's name, what was missing from the second count, and where
+the delivered stone goes are open story questions. The post, inscription
+and mountain camp are proposed opening beats. The current build has the
+destruction tools used in the scene. The opening and delivery loop are
+story material.
+
+APPENDIX — EXTERNAL SCANNER NOTES
+================================
+The current build was checked for .cells import. The following describes
+an earlier external scanner workflow. scanner_server.py and scanner.html
+were outside the source review, so these instructions and capabilities
+need verification with those files.
+
+The earlier setup used Flask, OpenCV and NumPy, with optional Segno for
+QR pairing. It ran with python scanner_server.py and reported a local
+address on port 5055 for a phone on the same Wi-Fi network. Earlier notes
+list --port, --export, --no-browser and --terminal-qr. The external
+scanner's default export folder was scan_exports/ beside its server.
+To use an export in-game, put it in a folder listed under Import a scan.
+
+The earlier interface offered video upload and guided photos from Front,
+Right, Back and Left, with optional Top or Whole Object photos. The Model
+tab offered viewing, keyword edits, version comparison and an Import
+button to export .cells. History kept scans and their versions.
+
+The earlier reconstruction was described as a cutout inflated into a
+symmetric shape, with weak results on hollow objects, thin parts and
+low-contrast backgrounds. It stored material labels per cube. Per-cube
+colour, multi-view reconstruction, local vision-model labelling and
+photo-to-scene conversion were proposed extensions.
