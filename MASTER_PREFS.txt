@@ -1,0 +1,193 @@
+SHATTERLANDS — SETTINGS AND DIAGNOSTICS REFERENCE
+Documentation synchronized: 11 November 2026
+
+BUILD AND SCOPE
+===============
+This is documentation, not a loaded configuration file. Values and rules
+were checked against current constants, default_settings(), SETTINGS_TABS,
+startup parsing, settings serialization and diagnostics code. This pass
+does not add new gameplay or hardware test claims.
+
+FRESH-SESSION DEFAULTS
+======================
+Defaults apply before recognized saved preferences and explicit arguments.
+Window: 1280 x 720, resizable, windowed
+Game/menu canvas: 1920 x 1080
+Scene scale: 120% (2304 x 1296 scene target)
+FPS cap: 60; VSync: off; vertical FOV: 95 degrees
+Camera height: 126 cm; shake: 60%; sharpness: 80%
+Terrain detail: 5 cells per block edge
+Debris detail: 9; debris size: 150%; debris amount: 200%
+TNT size: 0.70x; existing-debris shockwave push: 150%
+Fireball size: 2.0x; recording preset: 1920 x 1080
+Terrain/mesh disk caches: enabled; terrain raymarching: enabled
+Selected tool: TNT; trees: disabled; survival: disabled
+Diagnostics: off; selected diagnostic view: normal
+Structures use terrain detail when run() initializes the game.
+
+EXPOSED SETTINGS
+================
+Ranges below are minimum..maximum; step. They are allowed values, not
+measured safe hardware recommendations. Tabs: DISPLAY, CUBES, CONTROLS,
+RECORDING. Diagnostic modes use keyboard controls rather than menu rows.
+
+DISPLAY
+Fullscreen: off/on; ordinary startup is windowed
+Screen shake: 0..200%; 5
+Camera height: 100..162 cm; 1
+Vertical FOV: 60..175 degrees; 1
+Scene scale: 25..150%; 5
+Sharpness: 0..100%; 5
+FPS cap: 0..240; 30; zero means uncapped
+VSync: off/on
+
+CUBES
+Terrain detail: 1..50; 1; applied on restart
+Debris detail: 1..12; 1
+Debris size: 10..150%; 1 percentage point
+Debris amount: 0..200%; 1; zero disables/clears loose debris
+TNT size: 0.5..3.0x; 0.1
+Fireball size: 0.5..3.0x; 0.1
+TNT shockwave push: 0..300%; 5
+Restart with new settings: save selected settings and restart the session
+
+CONTROLS contains the in-game help list.
+RECORDING preset: 0 = 854 x 480; 1 = 1280 x 720; 2 = 1920 x 1080.
+
+PERSISTENCE
+===========
+File: engineui_config.json beside Shatterlands.py.
+JSON shape example:
+{"launch_args": {"builtin:shatterlands": ["cubedetail-5", "fov-95"]}}
+The writer serializes terrain detail, debris detail/size/amount, shake,
+TNT size, fireball size, shockwave, recording preset, camera height and FOV.
+Save checks occur on settings close and normal exit; restart also saves.
+Fullscreen is not saved; historical fullscreen entries are ignored.
+FPS cap, scene scale, VSync and sharpness are not serialized. Diagnostics
+mode/view and grid visibility are not saved preferences either.
+Order: defaults, recognized saved arguments, explicit run arguments.
+Recognized persistent launch values can subsequently be saved.
+Preferences do not save terrain edits, debris or structures. Diagnostic
+exports include settings as evidence; those files are not loaded on launch.
+
+STARTUP TOKENS
+==============
+Use the explicit game route, for example:
+    python Shatterlands.py --run-game builtin:shatterlands cubedetail-5 fps-60
+Game tokens have no leading --. Arbitrary tokens passed to the ordinary
+launcher are not automatically forwarded by its Launch game action.
+Numeric tokens accept whole numbers and clamp to these ranges:
+    cubedetail-N: 1..50; cubedetail-max selects 50
+    debrisdetail-N: 1..12
+    debrissize-N: 10..150 (percent)
+    debris-N: 0..200 (percent); debris-off also selects zero
+    tntsize-N: 50..300 (percent)
+    fireballsize-N: 50..300 (percent)
+    shockwave-N: 0..300 (percent)
+    recordres-N: 0..2
+    fullscreen-N: 0..1
+    shake-N: 0..200 (percent)
+    cameraheight-N: 100..162 (cm)
+    fov-N: 60..175
+    fps-N: 0..1000 (different from menu maximum); zero uncapped
+    scale-N: 25..150 (percent)
+    cpuphysics: disable the optional GPU structural-label path
+    nocache: disable terrain/mesh disk caches for the run
+    raymarch: enable terrain raymarching (already the default)
+Unknown tokens print a diagnostic. There is no diagnostics-mode startup
+token in this parser; use G/H/F9 during the session.
+
+DIAGNOSTIC MODES AND COLOURS
+===========================
+G: OFF -> SIMPLE -> ADVANCED -> OFF.
+H: normal -> damage -> stress -> integrity -> motion -> normal.
+H enables simple diagnostics if off. F9 also enables simple mode if off.
+The selected view survives mode toggles within the session.
+Debris stays purple while diagnostics are on; normal colours return off.
+
+Simple: compact CPU/GPU timing bars and graph, total/terrain/debris/awake
+counts and visual-effect counts. Advanced adds structures/bodies/sleepers,
+pair counts, chunks/jobs, collapse activity, upload volume, process memory,
+hardware readings and the main performance settings. Panel footprint on
+the fixed canvas: 480 x 270 simple; 480 x 462 advanced; top-left (18,18).
+
+Damage: stored cracks, cyan to red, normalized against 0.85.
+Stress: structure stress/strength, blue to red. There is no per-cell
+terrain stress field; an empty structural view is valid without structures.
+Integrity: green/yellow/red from max(stress, normalized cracks). Nearby
+terrain views use damage alone, not a full structural stress solution.
+Motion: up to 64 velocity vectors with cool-to-hot speed colouring. This
+is motion intensity, not simulated temperature. GPU temperature is an
+independent hardware measurement when available.
+Ground damage/integrity samples are near the camera, limited to 41 cells
+per axis and refreshed at most twice per second; they are not whole-map
+damage surveys. Diagnostic display objects are not physical structures.
+
+COUNTERS AND TIMING
+==================
+Physical cube total = solid loaded terrain cells + live physical structure
+cells + loose debris. Effect cubes are reported separately and excluded
+from that total. Counts describe cells, not blocks, visible faces or
+conserved material volume. Terrain totals use incremental solid_count;
+changing detail changes how many cells represent the same world volume.
+
+CPU work: main-thread wall time, excluding the frame cap/flip interval.
+It is not aggregate CPU utilization or worker-process CPU time.
+Frame interval: includes pacing/waiting. CPU/GPU budget bars overlap;
+do not add them. Budget follows the FPS cap; uncapped uses a labelled
+60 FPS reference. GPU times are delayed sums of sampled GL stages, not
+complete GPU-frame latency or whole-device utilization.
+Unsupported/stale values display N/A. Hardware utilization is separate.
+Process CPU percent may exceed 100; 100 represents one core's CPU time.
+RSS is process resident memory, not peak memory, worker memory or VRAM.
+The NVIDIA poller reads the first device returned by nvidia-smi.
+
+Contact raw/test/hit values are recent 0.12-second per-field peaks of
+per-frame counts summed across solver passes; they are not unique pairs.
+Collapse cells/label bytes summarize evaluated work, not peak allocation.
+Upload bytes count raymarch voxel/brick payloads, not all driver traffic.
+CPU-stage means use up to 30 gameplay frames. Counters and hardware samples
+can differ slightly in age from each other and from delayed GPU timings.
+
+SAMPLING AND EXPORT
+===================
+Graph/counter redraw and sampled GPU query cadence: at most about 10 Hz.
+Hardware sampling: about 1 Hz; charts use exponential smoothing.
+Graph history: at most 120 samples, displayed over a 12-second axis.
+Raw frame/CPU-stage/engine histories: at most 240 frames. GPU history:
+at most 240 completed sampled query batches. These windows can cover
+different durations; a 12-second chart is not 12 seconds of raw frames.
+
+F9 writes diagnostics/Shatterlands_diagnostics_<timestamp>_<suffix>.png
+and a matching .json beside the script. Directory creation is automatic.
+PNG: timing/budget graphs, CPU-stage bars, counts, key settings, gameplay
+snapshot and available hardware readings. JSON adds settings, raw histories,
+renderer/platform information and measurement limitations.
+The settings snapshot contains every exposed menu setting plus selected
+internal settings. Active terrain detail is reported separately from the
+selected next-start detail. It is not a dump of every engine global.
+
+Counters/graphs are bounded and textures cached. Disabled diagnostics stop
+new query sampling, panel drawing, local diagnostic geometry construction
+and hardware polling; an in-flight hardware poll/query can finish afterward.
+The existing CPU profiler and incremental terrain counts remain active.
+No zero-overhead claim is made. Colour overlays add work; F9 explicitly
+incurs pixel-readback and file-writing cost. Earlier timings are not
+general performance guarantees.
+
+ENGINE NOTES
+============
+Loose debris uses CPU NumPy; rendering uses OpenGL. Connected structural
+cells use SciPy first, with optional CuPy/NumPy fallback. Terrain-island
+collapse checks specifically return no groups without SciPy. The startup
+label 'GPU physics' is broader than CuPy's actual role.
+Internal show_hud=False does not hide all overlays or control diagnostics.
+Debris detail is not a universal N-cubed-fragments-per-block guarantee.
+Strict scoop is on; debris_limit is off. BODY_MAX=12000 is therefore not
+an enforced global default cap. Dense terrain storage grows roughly
+cubically with detail: at 50, one edited chunk's int8 terrain array is
+750 x 2415 x 750 = 1,358,437,500 bytes, about 1.265 GiB before other data.
+
+Read MASTER_README.txt for controls/output and MASTER_LORE.txt for setting
+prose. Known issues are listed under LIMITATIONS AND VERIFICATION in
+MASTER_README.txt; settings do not resolve them.

@@ -1,0 +1,86 @@
+CONFIRMED BY
+============
+Claude Haiku 5.5
+Claude Sonnet 5.5
+GPT-6 Luna
+Gemini Pro
+Argon
+
+SHATTERLANDS — DOCUMENTATION STATUS REPORT
+Date: 11 November 2026
+
+QUESTION
+========
+README, PREFS, LORE and the script all agree with each other (except
+audit and fixes which no longer apply): yes/no?
+
+VERDICT
+=======
+YES. The documentation and the script are in agreement. No open
+discrepancies remain.
+
+FILES COVERED
+=============
+Shatterlands.py      Game, engine and launcher (single script)
+MASTER_README.txt    Controls, tools, diagnostics, output, limitations
+MASTER_PREFS.txt     Defaults, ranges, persistence, startup tokens, diagnostics
+MASTER_LORE.txt      World lore; no technical specification
+
+The working_copy versions of all four files were compared byte for byte
+against the final corrected versions and match.
+
+CHANGES MADE IN THIS PASS
+=========================
+Shatterlands.py
+  - Removed the SHA-256 source hash from the F9 diagnostics JSON export
+    and the hashlib import that served it.
+  - Controls tab: Blower help now reads "1x / 2x power (2x pulls harder
+    and reaches farther)", replacing the unimplemented 15/30 cubes/s text.
+  - Controls tab: added "F — Pause simulation".
+  - apply_launch_args docstring: states that recognised settings can be
+    saved; debris-N range corrected to 0 to 200.
+  - cpuphysics help: now "disable the optional GPU structural-labelling
+    path".
+  - SCOOP_STRICT comment: describes skipping the excavation sampling
+    budgets, with no exact-count or full-size guarantee.
+  - BODY_MAX comment: the cap applies only when debris_limit is on
+    (off by default).
+  No game logic was changed. The script compiles.
+
+MASTER_README.txt
+  - Removed the SHA-256 build hash, the empty CURRENT BUILD heading and
+    references to the script hash.
+  - Removed the note about the old 15/30 cubes/s Blower help text.
+
+MASTER_PREFS.txt
+  - Removed the SHA-256 build hash and the "source hash" export mention.
+  - Removed the notes about the old Blower help text, the missing F key
+    and the inaccurate parser comment.
+
+MASTER_LORE.txt
+  - No changes required.
+
+AREAS VERIFIED
+==============
+Defaults and menu ranges; startup token parsing and clamps; saved
+settings and save triggers; diagnostics modes, views, sampling rates,
+history sizes and panel sizes; controls and tools; map size; bedrock
+restoration; recording format and limits; dense-terrain memory figure.
+
+
+SCOPE AND REMAINING WORK
+========================
+This is a source-level agreement check, not a runtime or gameplay test.
+Known code issues remain and are documented under LIMITATIONS AND
+VERIFICATION in MASTER_README.txt: collision and resource-limit issues,
+and frame-rate-dependent Blower timing.
+
+Status: documentation pass complete.
+
+
+
+
+
+- Written by Opus 5.5
+
+END OF CHECK
