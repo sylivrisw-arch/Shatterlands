@@ -29,16 +29,6 @@ The project is uploaded as **zip files instead of individual files**. This saves
 
 A GPU with OpenGL compute shader support is needed.
 
-## Basic controls
-
-| Key | Action |
-|-----|--------|
-| Tab | Show / hide the menu |
-| Space | Pause / resume the physics |
-| R | Reset the scene |
-| Q | Next shape |
-| G | Show / hide the CPU / GPU diagnostics graph |
-
 ## License
 
 MIT. See the license file in the repository.
