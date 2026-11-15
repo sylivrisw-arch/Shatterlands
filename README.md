@@ -1,75 +1,44 @@
-
 # Shatterlands
 
-A first-person voxel destruction sandbox. Cut the terrain with the Impact Hammer, throw and detonate TNT, watch weakened ground collapse, and clear the rubble with the Blower.
+A destruction sandbox and physics engine written in Python (pygame + OpenGL): blast, break and collapse structures built from cubes.
 
-The map is a fixed 15 × 15 chunks (225 blocks across) of terraces, hills, mountains and river gorges. The bedrock layer at the bottom can't be broken.
+## Why everything is in zip files
 
-## Requirements
+The project is uploaded as **zip files instead of individual files**. This saves space and avoids confusion about which loose file belongs to which version. Download the zip you need and extract it.
 
-- Python (tested on 3.14)
-- NumPy, pygame, PyOpenGL, Tkinter
-- A graphics driver that supports GLSL 330
-- **Optional:** SciPy (needed for terrain collapse), psutil (process stats), CuPy (needs CUDA)
+| File | What it is |
+|------|------------|
+| `Shatterlands_game.zip` | The full game. |
+| `ShatterEngine_update.zip` | The engine by itself, extracted from the game, so work on the engine's progress can be followed separately. |
 
-There's no installer or requirements file yet. It was tested on an RTX 5060 Laptop GPU.
+## Getting started
 
-## Running
+1. Download `Shatterlands_game.zip` and extract it.
+2. Install Python 3 and the required packages:
 
-```
-python Shatterlands.py
-```
+   ```
+   pip install pygame numpy PyOpenGL scipy
+   ```
 
-Click **Launch game**. To skip the launcher and start the game directly:
+   Optional: `opencv-python` (video recording) and `numba` (speed).
+3. Run the game:
 
-```
-python Shatterlands.py --run-game builtin:shatterlands
-```
+   ```
+   python ShatterEngine2_reactive.py
+   ```
 
-You can add startup options after that command, for example `cubedetail-5 fps-60`. See `MASTER_PREFS.txt` for the full list.
+A GPU with OpenGL compute shader support is needed.
 
-## Tools
-
-| Key | Tool | Use |
-|---|---|---|
-| 1 | Impact Hammer | Left-click to make a small cut. It can weaken nearby ground. |
-| 2 | TNT | Hold left-click to aim, release to throw, then click again to detonate. One charge at a time. |
-| 3 | Blower | Hold left-click to pull in loose cubes and remove them. Mouse wheel switches between 1× and 2× power. |
-
-## Controls
+## Basic controls
 
 | Key | Action |
-|---|---|
-| W A S D / Mouse | Move / look |
-| Space / Left Shift | Jump / sprint |
-| V | Toggle flight (Space to rise, Ctrl to descend) |
-| F | Pause the simulation (you can still move) |
-| X | Toggle cube grid lines |
-| G / H | Diagnostics panel / colour overlays |
-| F9 | Save a diagnostics report (PNG + JSON) |
-| T | Record a clip (up to 15 seconds) |
-| R | Reset panel |
-| Tab | Settings |
-| Esc | Close the menu, or quit |
+|-----|--------|
+| Tab | Show / hide the menu |
+| Space | Pause / resume the physics |
+| R | Reset the scene |
+| Q | Next shape |
+| G | Show / hide the CPU / GPU diagnostics graph |
 
-## Output
+## License
 
-- **Settings** are saved to `engineui_config.json` beside the script.
-- **Recordings** are Motion JPEG AVI files at 30 fps, saved beside the script.
-- **Diagnostics reports** go into `diagnostics/`.
-- **Terrain and mesh caches** go into `cache/`.
-
-World edits are not saved between sessions.
-
-## Known limitations
-
-- Collisions and resource limits still have known problems.
-- Blower timing depends on the frame rate.
-- High terrain detail uses a lot of memory: about 1.3 GiB per edited chunk at detail 50.
-- Trees and survival are built but switched off.
-
-## Docs
-
-- `MASTER_README.txt`: the full game guide
-- `MASTER_PREFS.txt`: settings, startup options and diagnostics
-- `MASTER_LORE.txt`: world lore
+MIT. See the license file in the repository.
