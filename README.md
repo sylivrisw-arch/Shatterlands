@@ -32,3 +32,5 @@ A GPU with OpenGL compute shader support is needed.
 ## License
 
 MIT. See the license file in the repository.
+
+Screencaps: https://tinyurl.com/5x9dujrt
